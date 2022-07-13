@@ -1,0 +1,293 @@
+{
+    "category": "CUSTOM",
+    "displayName": "gke-prober-cluster",
+    "mosaicLayout": {
+        "columns": 12,
+        "tiles": [
+            {
+                "height": 4,
+                "widget": {
+                    "title": "unavailable nodes (self-reported)",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/node/available\n  | (metric.available != 'True')\n  | group_by [resource.node_name, resource.cluster_name]\n"
+                                }
+                            }
+                        ],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 6,
+                "yPos": 8
+            },
+            {
+                "height": 4,
+                "widget": {
+                    "title": "non-ready node conditions by node and condition (self-reported)",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/node/node_condition\n  | (metric.type != 'Ready')\n  | (metric.status == \"True\")\n  | group_by [resource.node_name, metric.type, resource.cluster_name]\n"
+                                }
+                            }
+                        ],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 6,
+                "yPos": 12
+            },
+            {
+                "height": 4,
+                "widget": {
+                    "title": "unavailable addons by addon and version",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.addon, metric.version, resource.cluster_name]\n"
+                                }
+                            }
+                        ],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 0,
+                "yPos": 12
+            },
+            {
+                "height": 4,
+                "widget": {
+                    "title": "percent available addons by addon and version",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n   | (metric.available == 'True')\n   | group_by [metric.addon, metric.version, resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/addons_expected\n   | group_by [metric.addon, metric.version, resource.cluster_name]\n } | join | div | mul(100)"
+                                }
+                            }
+                        ],
+                        "thresholds": [],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 0,
+                "yPos": 4
+            },
+            {
+                "height": 4,
+                "widget": {
+                    "title": "percent available addons by addon and version",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": "{\n    fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n        | (metric.available == 'True')\n        | group_by [metric.addon, metric.version, resource.cluster_name] ;\n    fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/addons_expected\n        | group_by [metric.addon, metric.version, resource.cluster_name]\n} | join  \n  | div\n  | mul(100)"
+                                }
+                            }
+                        ],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 0,
+                "yPos": 0
+            },
+            {
+                "height": 4,
+                "widget": {
+                    "title": "addon restarts by addon (TODO: per hour)",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/restart\n| group_by [metric.addon, metric.version, resource.cluster_name]\n"
+                                }
+                            }
+                        ],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 0,
+                "yPos": 16
+            },
+            {
+                "height": 4,
+                "widget": {
+                    "title": "available addons by addon and version",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n| (metric.available == 'True')\n| group_by [metric.addon, metric.version, resource.cluster_name]\n"
+                                }
+                            }
+                        ],
+                        "thresholds": [],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 0,
+                "yPos": 8
+            },
+            {
+                "height": 4,
+                "widget": {
+                    "title": "percent available nodes by cluster",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": "{\n    fetch k8s_node :: workload.googleapis.com/gke-prober/node/available\n        | (metric.available == 'True')\n        | group_by [resource.cluster_name] ;\n    fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n        | (metric.done_warming == 'True')\n        | group_by [resource.cluster_name]\n} | join\n  | div\n  | mul(100)\n"
+                                }
+                            }
+                        ],
+                        "thresholds": [],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 6,
+                "yPos": 0
+            },
+            {
+                "height": 4,
+                "widget": {
+                    "title": "percent available addon control planes by cluster",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/gke-prober/addon/control_plane_available\n   | (metric.available == 'True')\n   | group_by [resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n   | group_by [resource.cluster_name]\n } | join | div | mul(100)"
+                                }
+                            }
+                        ],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 0,
+                "yPos": 0
+            },
+            {
+                "height": 4,
+                "widget": {
+                    "title": "percent available nodes by zone and nodepool",
+                    "xyChart": {
+                        "chartOptions": {
+                            "mode": "COLOR"
+                        },
+                        "dataSets": [
+                            {
+                                "plotType": "LINE",
+                                "targetAxis": "Y1",
+                                "timeSeriesQuery": {
+                                    "timeSeriesQueryLanguage": "{\n    fetch k8s_node :: workload.googleapis.com/gke-prober/node/available\n        | (metric.available == 'True')\n        | group_by [metric.zone, metric.nodepool] ;\n    fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n        | (metric.done_warming == 'True')\n        | group_by [metric.zone, metric.nodepool]\n} | join\n  | div\n  | mul(100)\n"
+                                }
+                            }
+                        ],
+                        "thresholds": [],
+                        "timeshiftDuration": "0s",
+                        "yAxis": {
+                            "label": "y1Axis",
+                            "scale": "LINEAR"
+                        }
+                    }
+                },
+                "width": 6,
+                "xPos": 6,
+                "yPos": 4
+            }
+        ]
+    }
+}
