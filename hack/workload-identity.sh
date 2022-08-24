@@ -13,6 +13,7 @@
 # limitations under the License.
 
 gcloud iam service-accounts create gke-prober-sa --display-name "gke-prober"
+
 gcloud iam service-accounts add-iam-policy-binding \
   --role roles/iam.workloadIdentityUser \
   --member "serviceAccount:${PROJECT_ID}.svc.id.goog[gke-prober-system/gke-prober]" \
@@ -26,7 +27,3 @@ gcloud projects add-iam-policy-binding \
   --role projects/${PROJECT_ID}/roles/gkeprober \
   --member "serviceAccount:gke-prober-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   ${PROJECT_ID}
-
-kubectl annotate sa gke-prober \
-  -n gke-prober-system \
-  iam.gke.io/gcp-service-account=gke-prober-sa@${PROJECT_ID}.iam.gserviceaccount.com

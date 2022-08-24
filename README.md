@@ -5,10 +5,29 @@
 1. Metrics collected from probing of the compute environment (e.g. dns, networking)
 1. Service level indicators, describing the health of your nodes and node-hosted GKE components in an aggregate fashion
 
-The metrics are labelled with a few other dimensions, as appropriate, related to the metrics themselves. 
+The metrics are labelled with a few other dimensions, as appropriate, related to the metrics themselves.
 
+Note: this is not an officially supported Google product.
 
-# Installing `gke-prober`
+## Table of Contents
+
+* [Installation](#installation)
+* [Requirements](#requirements)
+* [Metrics](#metrics)
+* [Development](#development)
+* [License](#license)
+
+# Installation
+
+## Container image
+Currently, users would need to build its own container image using the provided Dockerfile.
+For build tools, we recommend the Google Cloud Build 
+```
+# go to the root directory where the Dockerfile resides
+
+gcloud builds submit --tag $IMG
+```
+
 Manifests in the `manifests` directory specify the GCP resources (as KCC resources) and kubernetes resources needed to run `gke-prober` in GKE clusters with Workload Identity enabled.
 
 Before applying, set your GCP project in all the manifests by hand, or by executing a kpt function at the root of the repository:
@@ -29,7 +48,7 @@ find . -type f -name "*.yaml" -print0 | xargs -0 sed -i'' -e 's/my-gcp-project/g
 ```
 
 Then apply the manifests to your GKE clusters. Manifests in `manifests/gcp` need to be applied into a KCC-enabled cluster. Manifests in `manifests/k8s` should be applied in the clusters where you'd like `gke-prober` installed.
-# Installation requirements for `gke-prober`
+# Requirements
 
 ## Kubernetes manifests
 `gke-prober` runs in two modes. These modes are complementary: _make sure you run both_.
@@ -39,19 +58,23 @@ Then apply the manifests to your GKE clusters. Manifests in `manifests/gcp` need
 
 ## Required Permissions
 ### RBAC permissions to the API server.
-`gke-prober` has its own service account in the `gke-prober-system` namespace, which requires `list` and `watch` permissions on the following resources:
+`gke-prober` has its own Kubernetes service account in the `gke-prober-system` namespace, which requires `list` and `watch` permissions on the following resources:
 1. `nodes`
 1. `pods`
 1. `daemonsets`
 1. `deployments`
 
 ### IAM permissions for Cloud Monitoring.
-`gke-prober` runs under a service account with the following IAM permissions:
+`gke-prober` runs under an IAM service account with the following IAM permissions:
 1. monitoring.metricDescriptors.create
 1. monitoring.timeSeries.create
 1. monitoring.metricDescriptors.list (optional, for prom-to-sd sidecar used for golang process metrics)
 
 ### Workload Identity
+`gke-prober`uses the Kubernetes service account (KSA) within your cluster to authenicate to the cluster API server. It also runs as an IAM service account (GSA) to call Cloud Monitoring APIs to expose the metrics it collects to the Cloud Monitoring/StackDriver remote backend.
+
+If you want to install `gke-prober` on GKE clusters. [GKE Workload Identify](https://cloud.google.com/kubernetes-engine/docs/concepts/workload-identity) is the recommended approach. Workload Identify binds a KSA to a GSA, it is the recommended way for your workloads (e.g. `gke-prober`) running on GKE to access Google Cloud services in a secure and manageable way.
+
 If your GKE cluster is configured with Workload Identity the `gke-prober` service account needs additional permissions, and needs to be linked to the k8s service account. See the [documentation page](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#gcloud) for Workload Identity, and refer to `hack/workload-identity.sh` (setting PROJECT_ID) for a concrete example.
 
 # Metrics
@@ -125,3 +148,6 @@ For local development (`make run`), gke-prober will use the k8s cluster in your 
 For local development exporting to Cloud Monitoring, export `PROJECT_ID=your_project` and make sure you have the requisite permissions in your current GCP session.
 
 Process metrics are exported on `:8080/metrics`
+
+# License
+[Apache License 2.0](LICENSE)
