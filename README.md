@@ -9,7 +9,7 @@ The metrics are labelled with a few other dimensions, as appropriate, related to
 
 Note: this is not an officially supported Google product.
 
-## Table of Contents
+# Table of Contents
 
 * [Installation](#installation)
 * [Requirements](#requirements)
@@ -32,7 +32,7 @@ Manifests in the `manifests` directory specify the GCP resources (as KCC resourc
 
 Before applying, set your GCP project in all the manifests by hand, or by executing a kpt function at the root of the repository:
 
-```
+```bash
 mkdir -p ${HOME}/bin
 curl -L https://github.com/GoogleContainerTools/kpt/releases/download/v1.0.0-beta.1/kpt_linux_amd64 --output ~/bin/kpt && chmod u+x ${HOME}/bin/kpt
 export PATH=${HOME}/bin:${PATH}
@@ -42,7 +42,7 @@ kpt fn eval --truncate-output=false --image gcr.io/kpt-fn/apply-setters:v0.2 man
 
 Kpt requires Docker to run, if you don't have Docker installed, execute the Sed commend at the root of the repository to set your GCP project id in all the Yaml files:
 
-```
+```bash
 # replace gcp-project-id with the real project id
 find . -type f -name "*.yaml" -print0 | xargs -0 sed -i'' -e 's/my-gcp-project/gcp-project-id/g'
 ```
