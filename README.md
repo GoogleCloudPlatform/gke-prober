@@ -65,6 +65,18 @@ Then apply the manifests to your GKE clusters. Manifests in `manifests/gcp` need
 1. `deployments`
 
 ### IAM permissions for Cloud Monitoring.
+To expose metrics to Google Cloud Monitorinig, `gke-prober` uses the Cloud client libraries for Montiroing. 
+
+`gke-prober` must have a IAM credential to authenticate to Google Cloud Monitoring APIs. 
+[Google Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) is used by Client Libararies to automatically find credentials based on where you run `gke-prober`. 
+
+
+#### Runs In-Cluster
+`ADC` uses GKE Workload Identify, as provided as a KSA in the deployment yaml
+
+#### Runs locally
+Uses credentials you set up with the Google gcloud CLI. You need to provide credential to ADC for use by Cloud Monitoring Client Libraries. See the section [Development](#development)
+
 `gke-prober` runs under an IAM service account with the following IAM permissions:
 1. monitoring.metricDescriptors.create
 1. monitoring.timeSeries.create
@@ -143,9 +155,16 @@ Note: most GKE addons in this category only export metrics endpoints which may n
 
 To build, export `IMG=gcr.io/your_project/gke-prober:latest` and `make docker-build docker-push`. Use that IMG in the deployment manifests.
 
-For local development (`make run`), gke-prober will use the k8s cluster in your current kubectl context. To use the stdout OpenTelemetry exporter, use `DEBUG=true` (`DEBUG=true make run`).
+For local development, to expose metrics to Googel Cloud Montiroing, you need to provide your user credentials to `ADC`, you use gcloud CLI:
+```bash
+gcloud auth application-default login
+```
+After this, `gke-prober` will use the permission in your user account, so make sure you have the requisite permissions. See [Local Development Environment](https://cloud.google.com/docs/authentication/provide-credentials-adc#local-dev)
 
-For local development exporting to Cloud Monitoring, export `PROJECT_ID=your_project` and make sure you have the requisite permissions in your current GCP session.
+Then to launch `gke-prober` run this:
+```bash
+go run cmd/localdev/main.go -project=$PROJECT_ID -location=$LOCATION -cluster=$CLUSTER
+```
 
 Process metrics are exported on `:8080/metrics`
 

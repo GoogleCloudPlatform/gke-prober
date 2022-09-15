@@ -162,3 +162,4 @@ cancel()
 
 ## Future Improvements
 1. For goroutine synchronization, shall we use sync.waitgroup in additon to the context to make sure the main exits until after all work routines clean up their ongoing works
+1. Live/Readiness prober to be added to the probe pods
