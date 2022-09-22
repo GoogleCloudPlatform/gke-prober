@@ -26,51 +26,47 @@ import (
 
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/k8s"
+	"github.com/GoogleCloudPlatform/gke-prober/pkg/localcontroller"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
-	"github.com/GoogleCloudPlatform/gke-prober/pkg/probe"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/scheduler"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/homedir"
 )
 
-const (
-	DefaultMode           = common.ModeCluster
-	DefaultReportInterval = time.Duration(1 * time.Minute)
+var (
+	project  string
+	location string
+	cluster  string
 )
 
 func main() {
-	project := flag.String("project", "", "your GCP project id")
-	location := flag.String("location", "", "your cluster region/zone")
-	cluster := flag.String("cluster", "", "your cluster name")
 
 	flag.Parse()
 
-	if *project == "" {
+	if project == "" {
 		fmt.Println("Please supply a project id.")
 		os.Exit(1)
 	}
-
-	if *location == "" {
+	if location == "" {
 		fmt.Println("Please supply a cluster region/zone.")
 		os.Exit(1)
 	}
-
-	if *cluster == "" {
+	if cluster == "" {
 		fmt.Println("Please supply a cluster name.")
 		os.Exit(1)
 	}
 
 	cfg := common.Config{
-		ProjectID:      *project,
-		Location:       *location,
-		Cluster:        *cluster,
+		ProjectID:      project,
+		Location:       location,
+		Cluster:        cluster,
 		Kubeconfig:     getKubeconfig(),
 		Mode:           common.ModeCluster,
 		NodeName:       "",
 		NodeIP:         "",
 		Nodepool:       "",
 		HostNetwork:    false,
-		ReportInterval: DefaultReportInterval,
+		ReportInterval: time.Duration(1 * time.Minute),
 		ConnProbes:     false,
 		UserAgent:      common.UserAgent,
 		MetricPrefix:   common.MetricPrefix,
@@ -81,6 +77,9 @@ func main() {
 	clientset := k8s.ClientOrDie(cfg.Kubeconfig)
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	defer cancel()
+	defer fmt.Println("exiting")
 
 	// Initialize metrics pipeline
 	var provider metrics.Provider
@@ -97,18 +96,10 @@ func main() {
 		w := k8s.NewClusterWatcher(clientset)
 		w.StartClusterWatches(ctx)
 		go scheduler.StartClusterRecorder(ctx, cr, w, cfg.ReportInterval)
-	} else {
-		nr := provider.NodeRecorder()
-		s := scheduler.NewNodeScheduler(nr, cfg)
-		w := k8s.NewNodeWatcher(clientset, cfg.NodeName)
-		w.StartNodeWatches(ctx, s.ContainerRestartHandler())
-		go s.StartReporting(ctx, w, probe.GKEProbes(), cfg.ReportInterval)
-
-		if cfg.ConnProbes {
-			pr := provider.ProbeRecorder()
-			go scheduler.StartConnectivityProbes(ctx, pr, probe.ConnectivityProbes(), cfg.ReportInterval)
-		}
 	}
+
+	// Start the local controller to manage node probers
+	go localcontroller.StartController(ctx, clientset)
 
 	// Expose prometheus endpoint for local process metrics
 	// http.Handle("/metrics", promhttp.Handler())
@@ -118,8 +109,6 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs
 
-	cancel()
-	fmt.Println("exiting")
 }
 
 func getKubeconfig() string {
@@ -131,4 +120,10 @@ func getKubeconfig() string {
 	}
 	flag.Parse()
 	return *kubeconfig
+}
+
+func init() {
+	flag.StringVar(&project, "project", "", "your GCP project id")
+	flag.StringVar(&location, "location", "", "your cluster region/zone")
+	flag.StringVar(&cluster, "cluster", "", "your cluster name")
 }
