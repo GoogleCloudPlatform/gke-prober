@@ -50,7 +50,7 @@ func NewController(
 	nodesInformer coreV1informers.NodeInformer) *Controller {
 
 	// Create a new controller
-	klog.Info("Creating a local controller to manage node-level probers")
+	klog.V(1).Infof("Creating a local controller to manage node-level probers")
 	controller := &Controller{
 		kubeclientset: kubeclientset,
 		nodesLister:   nodesInformer.Lister(),
@@ -58,7 +58,7 @@ func NewController(
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "nodeworkers"),
 	}
 
-	klog.Info("Setting up event handlers")
+	klog.V(1).Info("Setting up event handlers")
 	nodesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleObject,
 		UpdateFunc: func(old, new interface{}) {
@@ -67,6 +67,7 @@ func NewController(
 			if newNode.ResourceVersion == oldNode.ResourceVersion {
 				// Periodic resync will send update events for all known node.
 				// Two different versions of the same Node will always have different RVs.
+				klog.V(1).Infof("This is fired when the informer does the resync. No change to the resource, do nothing!")
 				return
 			}
 			controller.handleObject(new)
@@ -104,6 +105,45 @@ func (c *Controller) runWorker() {
 // processNextQueueItem reads a single work time off the queue
 // and attempt to process it
 func (c *Controller) processNextQueueItem() bool {
+	obj, shutdown := c.workqueue.Get()
+
+	if shutdown {
+		return false
+	}
+
+	// We wrap this block in a func so we can defer c.workqueue.Done.
+	err := func(obj interface{}) error {
+		defer c.workqueue.Done(obj)
+		var key string
+		var ok bool
+
+		if key, ok = obj.(string); !ok {
+			// As the item in the workqueue is actually invalid, we call
+			// Forget here else we'd go into a loop of attempting to
+			// process a work item that is invalid.
+			c.workqueue.Forget(obj)
+			utilruntime.HandleError(fmt.Errorf("expected string in workqueue but got %#v", obj))
+			return nil
+		}
+		// Run the syncHandler, passing it the namespace/name string of the
+		// Foo resource to be synced.
+		if err := c.syncHandler(key); err != nil {
+			// Put the item back on the workqueue to handle any transient errors.
+			c.workqueue.AddRateLimited(key)
+			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
+		}
+		// Finally, if no error occurs we Forget this item so it does not
+		// get queued again until another change happens.
+		c.workqueue.Forget(obj)
+		klog.V(1).Infof("Successfully processed the change to the node '%s'", key)
+		return nil
+	}(obj)
+
+	if err != nil {
+		utilruntime.HandleError(err)
+		return true
+	}
+
 	return true
 }
 
@@ -111,14 +151,14 @@ func (c *Controller) processNextQueueItem() bool {
 // start the node prober when a new node is added or
 // shutdown the prober when a node is deleted
 func (c *Controller) syncHandler(key string) error {
-	fmt.Printf("SyncHandler called to handle %s\n", key)
+	klog.V(1).Infof("Now processing the node <%s>\n", key)
 	return nil
 }
 
 // handleObject runs filtering on the events and
 // it only inserts the events we need to care in the workqueue
 func (c *Controller) handleObject(obj interface{}) {
-	fmt.Println("Detected Node changes!")
+	klog.V(1).Infof("Detected Node changes!")
 	var object metav1.Object
 	var ok bool
 	if object, ok = obj.(metav1.Object); !ok {
@@ -152,7 +192,7 @@ func (c *Controller) enqueue(obj interface{}) {
 func StartController(ctx context.Context, kubeclientset *kubernetes.Clientset) {
 	stopCh := make(chan struct{})
 
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeclientset, time.Second*30)
+	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeclientset, 0)
 
 	controller := NewController(kubeclientset,
 		kubeInformerFactory.Core().V1().Nodes())

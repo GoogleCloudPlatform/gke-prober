@@ -31,6 +31,7 @@ import (
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/scheduler"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/homedir"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -41,6 +42,7 @@ var (
 
 func main() {
 
+	klog.InitFlags(nil)
 	flag.Parse()
 
 	if project == "" {
@@ -72,14 +74,14 @@ func main() {
 		MetricPrefix:   common.MetricPrefix,
 	}
 
-	fmt.Printf("starting gke-prober locally with config: %+v\n", cfg)
+	klog.Infof("starting gke-prober locally with config: %+v\n", cfg)
 
 	clientset := k8s.ClientOrDie(cfg.Kubeconfig)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer cancel()
-	defer fmt.Println("exiting")
+	defer klog.Infof("exiting...")
 
 	// Initialize metrics pipeline
 	var provider metrics.Provider
@@ -87,7 +89,7 @@ func main() {
 	//provider, err = metrics.StartOTel(ctx, cfg)
 	provider, err = metrics.StartGCM(ctx, cfg)
 	if err != nil {
-		panic(err.Error())
+		klog.Fatalf(err.Error())
 	}
 
 	// initialize watcher, metrics recorder, and prober
