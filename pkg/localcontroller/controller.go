@@ -17,49 +17,47 @@ package localcontroller
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	kubeinformers "k8s.io/client-go/informers"
 	coreV1informers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
-	corelister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 )
 
-const controllerAgentName = "gke-prober-local-controller"
-
-const (
-	SuccessSynced = "Synced"
-)
+type watchedNodes struct {
+	nodes map[string]int
+	m     sync.Mutex
+}
 
 type Controller struct {
 	kubeclientset kubernetes.Interface
-	nodesLister   corelister.NodeLister
 	nodesSynced   cache.InformerSynced
 	workqueue     workqueue.RateLimitingInterface
+	watchedNodes  *watchedNodes
 }
 
 func NewController(
 	kubeclientset kubernetes.Interface,
-	nodesInformer coreV1informers.NodeInformer) *Controller {
+	nodesInformer cache.SharedIndexInformer) *Controller {
 
 	// Create a new controller
 	klog.V(1).Infof("Creating a local controller to manage node-level probers")
 	controller := &Controller{
 		kubeclientset: kubeclientset,
-		nodesLister:   nodesInformer.Lister(),
-		nodesSynced:   nodesInformer.Informer().HasSynced,
+		nodesSynced:   nodesInformer.HasSynced,
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "nodeworkers"),
+		watchedNodes:  &watchedNodes{nodes: make(map[string]int)},
 	}
 
 	klog.V(1).Info("Setting up event handlers")
-	nodesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	nodesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleObject,
 		UpdateFunc: func(old, new interface{}) {
 			newNode := new.(*corev1.Node)
@@ -90,7 +88,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) error {
 
 	// Start n workers in parallel
 	for i := 0; i < workers; i++ {
-		go wait.Until(c.runWorker, 5*time.Second, stopCh)
+		go wait.Until(c.runWorker, 10*time.Second, stopCh)
 	}
 
 	<-stopCh
@@ -186,18 +184,49 @@ func (c *Controller) enqueue(obj interface{}) {
 		utilruntime.HandleError(err)
 		return
 	}
+	if _, ok := c.watchedNodes.nodes[key]; ok {
+		klog.V(1).Infof("Node <%s> is already being watched, no need to enqueue the workqueu\n", key)
+		return
+	}
+
 	c.workqueue.Add(key)
+	c.watchedNodes.registerNode(key)
+
+	klog.V(1).Infof("Added the Node <%s> to workqueue\n", key)
+}
+
+func (wd *watchedNodes) registerNode(node string) error {
+	wd.m.Lock()
+	defer wd.m.Unlock()
+
+	if _, ok := wd.nodes[node]; ok {
+		return (fmt.Errorf("Node <%s> is already registered", node))
+	}
+	wd.nodes[node] = 0
+	return nil
+}
+
+func (wd *watchedNodes) popNode(node string) error {
+	wd.m.Lock()
+	defer wd.m.Unlock()
+
+	if _, ok := wd.nodes[node]; ok {
+		delete(wd.nodes, node)
+		return nil
+	}
+
+	return (fmt.Errorf("Node <%s> not found", node))
 }
 
 func StartController(ctx context.Context, kubeclientset *kubernetes.Clientset) {
 	stopCh := make(chan struct{})
+	defer close(stopCh)
 
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeclientset, 0)
+	nodeInformer := coreV1informers.NewNodeInformer(kubeclientset, 0, cache.Indexers{})
 
-	controller := NewController(kubeclientset,
-		kubeInformerFactory.Core().V1().Nodes())
+	controller := NewController(kubeclientset, nodeInformer)
 
-	kubeInformerFactory.Start(stopCh)
+	go nodeInformer.Run(stopCh)
 
 	if err := controller.Run(1, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err.Error())
@@ -206,6 +235,6 @@ func StartController(ctx context.Context, kubeclientset *kubernetes.Clientset) {
 
 	select {
 	case <-ctx.Done():
-		close(stopCh)
+		return
 	}
 }
