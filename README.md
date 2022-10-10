@@ -97,6 +97,12 @@ Once running, `gke-prober` will emit a variety of metrics.
  1. `gke-prober-fleet.json` visualizes node and addon metrics at a fleet level (multiple GKE clusters).
  1. `gke-prober-cluster.json` visualizes node and addon metrics at a cluster level: please filter on your GKE cluster name.
  1. `gke-prober-performance.json` visualizes the performance of `gke-prober` itself (memory/cpu usage, Cloud Monitoring API usage). Note: in the "Consumed API" chart, modify the `credential_id` filter to match the ID of your `gke-prober-sa` service account. 
+
+ To import the dashboards, run the following command (Replace "METRICS-PREFIX" with the perfix being used. For example, "gke-prober")
+ ```bash
+ gcloud monitoring dashboards create --config-from-file dashboards/cloud-monitoring/*.json
+ ```
+ 
  
  The dashboards look roughly like this (slightly out-of-date screenshot):
 

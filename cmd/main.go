@@ -36,6 +36,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/homedir"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -46,8 +47,10 @@ const (
 )
 
 func main() {
+	klog.InitFlags(nil)
 	cfg := getConfig()
-	fmt.Printf("starting with config: %+v\n", cfg)
+	klog.Infof("starting with config: %+v\n", cfg)
+	// fmt.Printf("starting with config: %+v\n", cfg)
 
 	clientset := k8s.ClientOrDie(cfg.Kubeconfig)
 

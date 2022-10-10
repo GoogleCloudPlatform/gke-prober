@@ -59,6 +59,8 @@ func NewController(
 	klog.V(1).Info("Setting up event handlers")
 	nodesInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleObject,
+		// We only care about the node restart events
+		// so that we need to restart the prober on the node
 		UpdateFunc: func(old, new interface{}) {
 			newNode := new.(*corev1.Node)
 			oldNode := old.(*corev1.Node)
@@ -133,6 +135,7 @@ func (c *Controller) processNextQueueItem() bool {
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		c.workqueue.Forget(obj)
+		c.watchedNodes.registerNode(key)
 		klog.V(1).Infof("Successfully processed the change to the node '%s'", key)
 		return nil
 	}(obj)
@@ -184,14 +187,14 @@ func (c *Controller) enqueue(obj interface{}) {
 		utilruntime.HandleError(err)
 		return
 	}
+
+	// Should the logic be moved to handleObject?
 	if _, ok := c.watchedNodes.nodes[key]; ok {
-		klog.V(1).Infof("Node <%s> is already being watched, no need to enqueue the workqueu\n", key)
+		klog.V(1).Infof("Node <%s> is already being watched, skip enqueue the workqueue\n", key)
 		return
 	}
 
 	c.workqueue.Add(key)
-	c.watchedNodes.registerNode(key)
-
 	klog.V(1).Infof("Added the Node <%s> to workqueue\n", key)
 }
 

@@ -1,6 +1,6 @@
 {
     "category": "CUSTOM",
-    "displayName": "gke-prober-cluster",
+    "displayName": "kube-prober-cluster",
     "mosaicLayout": {
         "columns": 12,
         "tiles": [
@@ -17,7 +17,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/node/available\n  | (metric.available != 'True')\n  | group_by [resource.node_name, resource.cluster_name]\n"
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/kube-prober/node/available\n  | (metric.available != 'True')\n  | group_by [resource.node_name, resource.cluster_name]\n"
                                 }
                             }
                         ],
@@ -45,7 +45,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/node/node_condition\n  | (metric.type != 'Ready')\n  | (metric.status == \"True\")\n  | group_by [resource.node_name, metric.type, resource.cluster_name]\n"
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/kube-prober/node/condition\n  | (metric.type != 'Ready')\n  | (metric.status == \"True\")\n  | group_by [resource.node_name, metric.type, resource.cluster_name]\n"
                                 }
                             }
                         ],
@@ -73,7 +73,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.addon, metric.version, resource.cluster_name]\n"
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/kube-prober/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.addon, metric.version, resource.cluster_name]\n"
                                 }
                             }
                         ],
@@ -101,7 +101,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n   | (metric.available == 'True')\n   | group_by [metric.addon, metric.version, resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/addons_expected\n   | group_by [metric.addon, metric.version, resource.cluster_name]\n } | join | div | mul(100)"
+                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/kube-prober/addon/available\n   | (metric.available == 'True')\n   | group_by [metric.addon, metric.version, resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/kube-prober/cluster/addons_expected\n   | group_by [metric.addon, metric.version, resource.cluster_name]\n } | join | div | mul(100)"
                                 }
                             }
                         ],
@@ -120,62 +120,6 @@
             {
                 "height": 4,
                 "widget": {
-                    "title": "percent available addons by addon and version",
-                    "xyChart": {
-                        "chartOptions": {
-                            "mode": "COLOR"
-                        },
-                        "dataSets": [
-                            {
-                                "plotType": "LINE",
-                                "targetAxis": "Y1",
-                                "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "{\n    fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n        | (metric.available == 'True')\n        | group_by [metric.addon, metric.version, resource.cluster_name] ;\n    fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/addons_expected\n        | group_by [metric.addon, metric.version, resource.cluster_name]\n} | join  \n  | div\n  | mul(100)"
-                                }
-                            }
-                        ],
-                        "timeshiftDuration": "0s",
-                        "yAxis": {
-                            "label": "y1Axis",
-                            "scale": "LINEAR"
-                        }
-                    }
-                },
-                "width": 6,
-                "xPos": 0,
-                "yPos": 0
-            },
-            {
-                "height": 4,
-                "widget": {
-                    "title": "addon restarts by addon (TODO: per hour)",
-                    "xyChart": {
-                        "chartOptions": {
-                            "mode": "COLOR"
-                        },
-                        "dataSets": [
-                            {
-                                "plotType": "LINE",
-                                "targetAxis": "Y1",
-                                "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/restart\n| group_by [metric.addon, metric.version, resource.cluster_name]\n"
-                                }
-                            }
-                        ],
-                        "timeshiftDuration": "0s",
-                        "yAxis": {
-                            "label": "y1Axis",
-                            "scale": "LINEAR"
-                        }
-                    }
-                },
-                "width": 6,
-                "xPos": 0,
-                "yPos": 16
-            },
-            {
-                "height": 4,
-                "widget": {
                     "title": "available addons by addon and version",
                     "xyChart": {
                         "chartOptions": {
@@ -186,7 +130,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n| (metric.available == 'True')\n| group_by [metric.addon, metric.version, resource.cluster_name]\n"
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/kube-prober/addon/available\n| (metric.available == 'True')\n| group_by [metric.addon, metric.version, resource.cluster_name]\n"
                                 }
                             }
                         ],
@@ -215,7 +159,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "{\n    fetch k8s_node :: workload.googleapis.com/gke-prober/node/available\n        | (metric.available == 'True')\n        | group_by [resource.cluster_name] ;\n    fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n        | (metric.done_warming == 'True')\n        | group_by [resource.cluster_name]\n} | join\n  | div\n  | mul(100)\n"
+                                    "timeSeriesQueryLanguage": "{\n    fetch k8s_node :: workload.googleapis.com/kube-prober/node/available\n        | (metric.available == 'True')\n        | group_by [resource.cluster_name] ;\n    fetch k8s_cluster :: workload.googleapis.com/kube-prober/cluster/node_available\n        | (metric.done_warming == 'True')\n        | group_by [resource.cluster_name]\n} | join\n  | div\n  | mul(100)\n"
                                 }
                             }
                         ],
@@ -244,7 +188,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/gke-prober/addon/control_plane_available\n   | (metric.available == 'True')\n   | group_by [resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n   | group_by [resource.cluster_name]\n } | join | div | mul(100)"
+                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/kube-prober/addon/control_plane_available\n   | (metric.available == 'True')\n   | group_by [resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/kube-prober/cluster/node_available\n   | group_by [resource.cluster_name]\n } | join | div | mul(100)"
                                 }
                             }
                         ],
@@ -272,7 +216,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "{\n    fetch k8s_node :: workload.googleapis.com/gke-prober/node/available\n        | (metric.available == 'True')\n        | group_by [metric.zone, metric.nodepool] ;\n    fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n        | (metric.done_warming == 'True')\n        | group_by [metric.zone, metric.nodepool]\n} | join\n  | div\n  | mul(100)\n"
+                                    "timeSeriesQueryLanguage": "{\n    fetch k8s_node :: workload.googleapis.com/kube-prober/node/available\n        | (metric.available == 'True')\n        | group_by [metric.zone, metric.nodepool] ;\n    fetch k8s_cluster :: workload.googleapis.com/kube-prober/cluster/node_available\n        | (metric.done_warming == 'True')\n        | group_by [metric.zone, metric.nodepool]\n} | join\n  | div\n  | mul(100)\n"
                                 }
                             }
                         ],

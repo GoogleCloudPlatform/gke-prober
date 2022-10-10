@@ -26,7 +26,6 @@ import (
 
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/k8s"
-	"github.com/GoogleCloudPlatform/gke-prober/pkg/localcontroller"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/scheduler"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -101,7 +100,7 @@ func main() {
 	}
 
 	// Start the local controller to manage node probers
-	go localcontroller.StartController(ctx, clientset)
+	// go localcontroller.StartController(ctx, clientset)
 
 	// Expose prometheus endpoint for local process metrics
 	// http.Handle("/metrics", promhttp.Handler())
