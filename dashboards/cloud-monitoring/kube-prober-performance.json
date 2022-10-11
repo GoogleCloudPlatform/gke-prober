@@ -1,13 +1,13 @@
 {
     "category": "CUSTOM",
-    "displayName": "gke-prober-performance",
+    "displayName": "METRICS-PREFIX-performance",
     "mosaicLayout": {
         "columns": 12,
         "tiles": [
             {
                 "height": 4,
                 "widget": {
-                    "title": "custom/gke-prober/go_memstats_heap_objects (filtered) (grouped) [MEAN]",
+                    "title": "custom/METRICS-PREFIX/go_memstats_heap_objects (filtered) (grouped) [MEAN]",
                     "xyChart": {
                         "chartOptions": {
                             "mode": "COLOR"
@@ -28,7 +28,7 @@
                                             ],
                                             "perSeriesAligner": "ALIGN_MEAN"
                                         },
-                                        "filter": "metric.type=\"custom.googleapis.com/gke-prober/go_memstats_heap_objects\" resource.type=\"gke_container\" resource.label.\"namespace_id\"=\"gke-prober-system\""
+                                        "filter": "metric.type=\"custom.googleapis.com/METRICS-PREFIX/go_memstats_heap_objects\" resource.type=\"gke_container\" resource.label.\"namespace_id\"=\"METRICS-PREFIX-system\""
                                     }
                                 }
                             }
@@ -47,7 +47,7 @@
             {
                 "height": 4,
                 "widget": {
-                    "title": "Kubernetes Container - CPU usage time for gke-prober-system [RATE]",
+                    "title": "Kubernetes Container - CPU usage time for METRICS-PREFIX-system [RATE]",
                     "xyChart": {
                         "chartOptions": {
                             "mode": "COLOR"
@@ -65,7 +65,7 @@
                                             "crossSeriesReducer": "REDUCE_NONE",
                                             "perSeriesAligner": "ALIGN_RATE"
                                         },
-                                        "filter": "metric.type=\"kubernetes.io/container/cpu/core_usage_time\" resource.type=\"k8s_container\" resource.label.\"namespace_name\"=\"gke-prober-system\""
+                                        "filter": "metric.type=\"kubernetes.io/container/cpu/core_usage_time\" resource.type=\"k8s_container\" resource.label.\"namespace_name\"=\"METRICS-PREFIX-system\""
                                     }
                                 }
                             }
@@ -84,7 +84,7 @@
             {
                 "height": 4,
                 "widget": {
-                    "title": "Kubernetes Container - Memory usage for gke-prober-system [MEAN]",
+                    "title": "Kubernetes Container - Memory usage for METRICS-PREFIX-system [MEAN]",
                     "xyChart": {
                         "chartOptions": {
                             "mode": "COLOR"
@@ -102,7 +102,7 @@
                                             "crossSeriesReducer": "REDUCE_NONE",
                                             "perSeriesAligner": "ALIGN_MEAN"
                                         },
-                                        "filter": "metric.type=\"kubernetes.io/container/memory/used_bytes\" resource.type=\"k8s_container\" resource.label.\"namespace_name\"=\"gke-prober-system\""
+                                        "filter": "metric.type=\"kubernetes.io/container/memory/used_bytes\" resource.type=\"k8s_container\" resource.label.\"namespace_name\"=\"METRICS-PREFIX-system\""
                                     }
                                 }
                             }

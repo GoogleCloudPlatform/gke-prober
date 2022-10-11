@@ -1,6 +1,6 @@
 {
     "category": "CUSTOM",
-    "displayName": "gke-prober-fleet",
+    "displayName": "METRICS-PREFIX-fleet",
     "mosaicLayout": {
         "columns": 12,
         "tiles": [
@@ -17,7 +17,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/gke-prober/node/available\n   | (metric.available == 'True')\n   | group_by [resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n   | (metric.done_warming == 'True')\n   | group_by [resource.cluster_name]\n } | join | div | mul(100)"
+                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/METRICS-PREFIX/node/available\n   | (metric.available == 'True')\n   | group_by [resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/METRICS-PREFIX/cluster/node_available\n   | (metric.done_warming == 'True')\n   | group_by [resource.cluster_name]\n } | join | div | mul(100)"
                                 }
                             }
                         ],
@@ -45,7 +45,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/gke-prober/addon/control_plane_available\n   | (metric.available == 'True')\n   | group_by [resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n   | (metric.available == 'True')\n   | group_by [resource.cluster_name]\n } | join | div | mul(100)"
+                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/METRICS-PREFIX/addon/control_plane_available\n   | (metric.available == 'True')\n   | group_by [resource.cluster_name] ;\n   fetch k8s_cluster :: workload.googleapis.com/METRICS-PREFIX/cluster/node_available\n   | (metric.available == 'True')\n   | group_by [resource.cluster_name]\n } | join | div | mul(100)"
                                 }
                             }
                         ],
@@ -73,7 +73,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.addon, metric.version]\n"
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/METRICS-PREFIX/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.addon, metric.version]\n"
                                 }
                             }
                         ],
@@ -101,7 +101,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.addon, metric.version]\n"
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/METRICS-PREFIX/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.addon, metric.version]\n"
                                 }
                             }
                         ],
@@ -129,7 +129,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/gke-prober/node/available\n   | (metric.available == 'True')\n   | group_by [metric.zone] ;\n   fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n   | (metric.done_warming == 'True')\n   | group_by [metric.zone]\n } | join | div | mul(100)"
+                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/METRICS-PREFIX/node/available\n   | (metric.available == 'True')\n   | group_by [metric.zone] ;\n   fetch k8s_cluster :: workload.googleapis.com/METRICS-PREFIX/cluster/node_available\n   | (metric.done_warming == 'True')\n   | group_by [metric.zone]\n } | join | div | mul(100)"
                                 }
                             }
                         ],
@@ -157,7 +157,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/gke-prober/addon/control_plane_available\n   | (metric.available == 'True')\n   | group_by [metric.zone] ;\n   fetch k8s_cluster :: workload.googleapis.com/gke-prober/cluster/node_available\n   | (metric.available == 'True')\n   | group_by [metric.zone]\n } | join | div | mul(100)"
+                                    "timeSeriesQueryLanguage": " {\n   fetch k8s_node :: workload.googleapis.com/METRICS-PREFIX/addon/control_plane_available\n   | (metric.available == 'True')\n   | group_by [metric.zone] ;\n   fetch k8s_cluster :: workload.googleapis.com/METRICS-PREFIX/cluster/node_available\n   | (metric.available == 'True')\n   | group_by [metric.zone]\n } | join | div | mul(100)"
                                 }
                             }
                         ],
@@ -186,7 +186,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.zone]\n"
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/METRICS-PREFIX/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.zone]\n"
                                 }
                             }
                         ],
@@ -215,7 +215,7 @@
                                 "plotType": "LINE",
                                 "targetAxis": "Y1",
                                 "timeSeriesQuery": {
-                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/gke-prober/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.zone]\n"
+                                    "timeSeriesQueryLanguage": "fetch k8s_node :: workload.googleapis.com/METRICS-PREFIX/addon/available\n  | (metric.available != 'True')\n  | group_by [metric.zone]\n"
                                 }
                             }
                         ],
