@@ -76,7 +76,7 @@ func main() {
 		nr := provider.NodeRecorder()
 		s := scheduler.NewNodeScheduler(nr, cfg)
 		w := k8s.NewNodeWatcher(clientset, cfg.NodeName)
-		w.StartNodeWatches(ctx, s.ContainerRestartHandler())
+		w.StartNodeWatches(ctx, s.ContainerRestartHandler(ctx))
 		go s.StartReporting(ctx, w, probe.GKEProbes(), cfg.ReportInterval)
 
 		if cfg.ConnProbes {
@@ -94,7 +94,7 @@ func main() {
 	<-sigs
 
 	cancel()
-	fmt.Println("exiting")
+	klog.Infof("exiting")
 }
 
 func getConfig() common.Config {

@@ -115,24 +115,21 @@ func (*otelProvider) ClusterRecorder() ClusterRecorder {
 	}
 }
 
-func (m *otelClusterRecorder) RecordNodeConditions(counts []LabelCount) {
-	ctx := context.Background()
+func (m *otelClusterRecorder) RecordNodeConditions(ctx context.Context, counts []LabelCount) {
 	for _, c := range counts {
 		attrs := attributesFromMap(c.Labels)
 		m.nodeConditionRecorder.Add(ctx, int64(c.Count), attrs...)
 	}
 }
 
-func (m *otelClusterRecorder) RecordAddonCounts(counts []LabelCount) {
-	ctx := context.Background()
+func (m *otelClusterRecorder) RecordAddonCounts(ctx context.Context, counts []LabelCount) {
 	for _, c := range counts {
 		attrs := attributesFromMap(c.Labels)
 		m.addonExpectedRecorder.Add(ctx, int64(c.Count), attrs...)
 	}
 }
 
-func (m *otelClusterRecorder) RecordNodeAvailabilities(counts []LabelCount) {
-	ctx := context.Background()
+func (m *otelClusterRecorder) RecordNodeAvailabilities(ctx context.Context, counts []LabelCount) {
 	for _, c := range counts {
 		attrs := attributesFromMap(c.Labels)
 		m.nodeAvailableRecorder.Add(ctx, int64(c.Count), attrs...)
@@ -168,16 +165,14 @@ func (*otelProvider) NodeRecorder() NodeRecorder {
 	}
 }
 
-func (m *otelNodeRecorder) RecordAddonAvailabilies(counts []LabelCount) {
-	ctx := context.Background()
+func (m *otelNodeRecorder) RecordAddonAvailabilies(ctx context.Context, counts []LabelCount) {
 	for _, c := range counts {
 		attrs := attributesFromMap(c.Labels)
 		m.addonCounter.Add(ctx, int64(c.Count), attrs...)
 	}
 }
 
-func (m *otelNodeRecorder) RecordAddonControlPlaneAvailability(labels map[string]string) {
-	ctx := context.Background()
+func (m *otelNodeRecorder) RecordAddonControlPlaneAvailability(ctx context.Context, labels map[string]string) {
 	attrs := attributesFromMap(labels)
 	m.addonCPAvailabilityRecorder.Add(ctx, 1, attrs...)
 }
@@ -193,8 +188,7 @@ func addonAttributes(addon common.Addon) []attribute.KeyValue {
 	}
 }
 
-func (m *otelNodeRecorder) RecordNodeConditions(clabels []map[string]string) {
-	ctx := context.Background()
+func (m *otelNodeRecorder) RecordNodeConditions(ctx context.Context, clabels []map[string]string) {
 	for _, labels := range clabels {
 		attrs := attributesFromMap(labels)
 		m.nodeConditionRecorder.Add(ctx, 1, attrs...)
@@ -209,14 +203,12 @@ func boolToStr(b bool) string {
 	return "False"
 }
 
-func (m *otelNodeRecorder) RecordNodeAvailability(labels map[string]string) {
-	ctx := context.Background()
+func (m *otelNodeRecorder) RecordNodeAvailability(ctx context.Context, labels map[string]string) {
 	attrs := attributesFromMap(labels)
 	m.nodeAvailabilityRecorder.Add(ctx, 1, attrs...)
 }
 
-func (m *otelNodeRecorder) RecordContainerRestart(labels map[string]string) {
-	ctx := context.Background()
+func (m *otelNodeRecorder) RecordContainerRestart(ctx context.Context, labels map[string]string) {
 	attrs := attributesFromMap(labels)
 	m.restartCounter.Add(ctx, 1, attrs...)
 }

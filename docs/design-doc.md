@@ -26,6 +26,32 @@ type Provider interface {
 
 A provider needs to implement 3 different "Recorder". Each recorder supports a variety of functions to montior cluster/node level components and emit specific metrics.
 
+## Generating Metrics
+
+All metrics are reported to the cloud monitoring at a one minute interval. The report interval is configurable.
+
+## Metrics List
+
+### cluster/node_available
+**Available** indicates the working nodes are "*healthy*" and "*schedulable*" and "*done_warming*"
+
+**Availability** is the total number of nodes in the cluster regardless of the node status
+
+```go
+func nodeAvailabilities(l []*v1.Node) (*mapCounter, int) {
+		for _, node := range l {
+			ready, schedulable, doneWarming := nodeAvailability(node)
+			available := ready && schedulable && doneWarming
+		
+		if available {
+			availableNodes++
+		}
+		mc.Increment(labels, 1)
+}
+```
+
+### cluster/addon_available
+
 ## Go Packages and Classes
 ### main.go
 The job of the main goroutine is to load the configurations and then start the metrics provider
@@ -102,7 +128,7 @@ func StartClusterRecorder(ctx context.Context, recorder metrics.ClusterRecorder,
 
 ### metrics.go
 metrics package includes the metrics metadata based on the format defined in Google Cloud Monitoring, including metric types and lables.
-See [metrics structure](*https://cloud.google.com/monitoring/api/v3/metrics-details)
+
 
 ### gcm.go
 gcm package is the Cloud monitoring implementation for the provider interface. It uses Google Cloud monitoring client library and calls APIs to generate time series and expose metrics
@@ -160,6 +186,74 @@ cancel()
 ## Client-go
 `gke-prober`leverages K8S informers to watch resource status in your GKE clusters. Informers are built on top of client-go library. 
 
+## Emitting metrtics to Cloud Monitoring
+See [metrics model](*https://cloud.google.com/monitoring/api/v3/metrics-details)
+
+### Metrcis
+A metrics is a set of related measurements of some attributes of a resource you are monitoring.
+
+Measurements are captured as a set of data points, consisting of time-stamped values
+
+### Time Series
+In Cloud Monitoring, the data structure underlies the metrics model is the time series. When you emit a metrics, you are actually writing time series to the cloud monitoring.
+
+A TS is identified by a combination of a fully-specified metric and a fully-specified resource.
+
+For instance: TS1 {'dog1', 'color:red'} and TS2 {'dog1',  'color:blue'} are two different TS even though they are monitoring the same resource because they specify different values for the 'color' label.
+
+A Sample time series
+```
+{
+  "timeSeries": [
+    {
+      "metric": {
+        "labels": {
+          "severity": "INFO",
+          "log": "compute.googleapis.com/activity_log"
+        },
+        "type": "logging.googleapis.com/log_entry_count"
+      },
+      "resource": {
+        "type": "gce_instance",
+        "labels": {
+          "instance_id": "0",
+          "zone": "us-central1",
+          "project_id": "your-project-id"
+        }
+      },
+      "metricKind": "DELTA",
+      "valueType": "INT64",
+      "points": [
+        {
+        "interval": {
+            "startTime": "2019-10-29T13:53:00Z",
+            "endTime": "2019-10-29T13:54:00Z"
+          },
+          "value": {
+            "int64Value": "0"
+          }
+        },
+        ...
+      ]
+    },
+    ...
+  ]
+}
+```
+
+### Labels
+There two types of labels:
+1. Metric Labels. E.g. "response_code", "request_method"
+1. Resource Labels, E.g. "project_id" "instance_id", "region"
+
+### Writing Time Series
+See [Create Custom Metrics using API](*https://cloud.google.com/monitoring/custom-metrics/creating-metrics)
+
+*Note*: Each time series object must contain exactly **one** "Point" object in "Points" field.
+
+*You can include up to 200 time series objects in a list and pass it to CreateTimeSeries method, and each object in the list must specify a different time series.*
+
 ## Future Improvements
 1. For goroutine synchronization, shall we use sync.waitgroup in additon to the context to make sure the main exits until after all work routines clean up their ongoing works
 1. Live/Readiness prober to be added to the probe pods
+1. Store resources status in a local cache?

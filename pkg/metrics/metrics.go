@@ -15,6 +15,7 @@
 package metrics
 
 import (
+	"context"
 	"time"
 )
 
@@ -47,7 +48,7 @@ type ClusterRecorder interface {
 	// Label: version / Value: (version of addon)
 	// Label: controller / Value: (DaemonSet or Deployment)
 	// Value: count of addons
-	RecordAddonCounts(counts []LabelCount)
+	RecordAddonCounts(ctx context.Context, counts []LabelCount)
 
 	// cluster/node_available (SLI)
 	// Entity: k8s_cluster
@@ -58,7 +59,7 @@ type ClusterRecorder interface {
 	// Label: schedulable / Value (True/False)
 	// Label: done_warming / Value (True/False)
 	// Value: count of available nodes
-	RecordNodeAvailabilities(counts []LabelCount)
+	RecordNodeAvailabilities(ctx context.Context, counts []LabelCount)
 
 	// cluster/node_condition
 	// Entity: k8s_cluster
@@ -67,7 +68,7 @@ type ClusterRecorder interface {
 	// Label: type / Values: (set of conditions)
 	// Label: status / Values: (True/False/Unknown)
 	// Value: count of nodes reflecting condition
-	RecordNodeConditions(counts []LabelCount)
+	RecordNodeConditions(ctx context.Context, counts []LabelCount)
 }
 
 type NodeRecorder interface {
@@ -84,7 +85,7 @@ type NodeRecorder interface {
 	// Label: stable / Value: (True/False)
 	// Label: healthy / Value: (True/False/Unknown/Error)
 	// Value: 1
-	RecordAddonAvailabilies(counts []LabelCount)
+	RecordAddonAvailabilies(ctx context.Context, counts []LabelCount)
 
 	// addon/restart
 	// Entity: k8s_node
@@ -97,7 +98,7 @@ type NodeRecorder interface {
 	// Label: reason / Value: (reason for restart)
 	// Label: exit_code / Value: (exit code)
 	// Value: 1
-	RecordContainerRestart(labels map[string]string)
+	RecordContainerRestart(ctx context.Context, labels map[string]string)
 
 	// addon/control_plane_available
 	// Entity: k8s_node
@@ -105,7 +106,7 @@ type NodeRecorder interface {
 	// Label: zone / Value (name of zone)
 	// Label: available / Value (True/False)
 	// Value: 1
-	RecordAddonControlPlaneAvailability(labels map[string]string)
+	RecordAddonControlPlaneAvailability(ctx context.Context, labels map[string]string)
 
 	// node/node_condition
 	// Entity: k8s_node
@@ -114,7 +115,7 @@ type NodeRecorder interface {
 	// Label: type / Values: (set of conditions)
 	// Label: status / Values: (True/False/Unknown)
 	// Value: 1
-	RecordNodeConditions(labels []map[string]string)
+	RecordNodeConditions(ctx context.Context, labels []map[string]string)
 
 	// node/available
 	// Entity: k8s_node
@@ -125,7 +126,7 @@ type NodeRecorder interface {
 	// Label: scheduleable / Value (True/False)
 	// Label: done_warming / Value (True/False)
 	// Value: 1
-	RecordNodeAvailability(labels map[string]string)
+	RecordNodeAvailability(ctx context.Context, labels map[string]string)
 }
 
 type ProbeRecorder interface {

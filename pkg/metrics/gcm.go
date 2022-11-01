@@ -87,7 +87,8 @@ func StartGCM(ctx context.Context, cfg common.Config) (*gcmProvider, error) {
 	}
 
 	provider := &gcmProvider{
-		ctx:      ctx,
+		// Prefer not to store context in a struct type, instead it should be passed as argument
+		// ctx:      ctx,
 		client:   client,
 		project:  cfg.ProjectID,
 		resource: resource,
@@ -157,11 +158,11 @@ func (p *gcmProvider) intGaugeTimeSeries(prefix string, labels map[string]string
 	}
 }
 
-func (p *gcmProvider) writeTimeSeries(ts ...*monitoringpb.TimeSeries) error {
-	ctx, cancel := context.WithDeadline(p.ctx, time.Now().Add(createTimeSeriesDeadline))
+func (p *gcmProvider) writeTimeSeries(ctx context.Context, ts ...*monitoringpb.TimeSeries) error {
+	cctx, cancel := context.WithDeadline(ctx, time.Now().Add(createTimeSeriesDeadline))
 	defer cancel()
 
-	err := p.client.CreateTimeSeries(ctx, &monitoringpb.CreateTimeSeriesRequest{
+	err := p.client.CreateTimeSeries(cctx, &monitoringpb.CreateTimeSeriesRequest{
 		Name:       monitoring.MetricProjectPath(p.project),
 		TimeSeries: ts,
 	})
@@ -187,28 +188,28 @@ func (p *gcmProvider) ClusterRecorder() ClusterRecorder {
 	return &gcmClusterRecorder{p: p}
 }
 
-func (r *gcmClusterRecorder) RecordNodeConditions(counts []LabelCount) {
+func (r *gcmClusterRecorder) RecordNodeConditions(ctx context.Context, counts []LabelCount) {
 	ts := []*monitoringpb.TimeSeries{}
 	for _, c := range counts {
 		ts = append(ts, r.p.intGaugeTimeSeries(MetricClusterNodeCondition, c.Labels, c.Count))
 	}
-	r.p.writeTimeSeries(ts...)
+	r.p.writeTimeSeries(ctx, ts...)
 }
 
-func (r *gcmClusterRecorder) RecordAddonCounts(counts []LabelCount) {
+func (r *gcmClusterRecorder) RecordAddonCounts(ctx context.Context, counts []LabelCount) {
 	ts := []*monitoringpb.TimeSeries{}
 	for _, c := range counts {
 		ts = append(ts, r.p.intGaugeTimeSeries(MetricClusterAddonsExpected, c.Labels, c.Count))
 	}
-	r.p.writeTimeSeries(ts...)
+	r.p.writeTimeSeries(ctx, ts...)
 }
 
-func (r *gcmClusterRecorder) RecordNodeAvailabilities(counts []LabelCount) {
+func (r *gcmClusterRecorder) RecordNodeAvailabilities(ctx context.Context, counts []LabelCount) {
 	ts := []*monitoringpb.TimeSeries{}
 	for _, c := range counts {
 		ts = append(ts, r.p.intGaugeTimeSeries(MetricClusterNodeAvailable, c.Labels, c.Count))
 	}
-	r.p.writeTimeSeries(ts...)
+	r.p.writeTimeSeries(ctx, ts...)
 }
 
 type gcmNodeRecorder struct {
@@ -219,35 +220,35 @@ func (p *gcmProvider) NodeRecorder() NodeRecorder {
 	return &gcmNodeRecorder{p: p}
 }
 
-func (r *gcmNodeRecorder) RecordAddonAvailabilies(counts []LabelCount) {
+func (r *gcmNodeRecorder) RecordAddonAvailabilies(ctx context.Context, counts []LabelCount) {
 	ts := []*monitoringpb.TimeSeries{}
 	for _, c := range counts {
 		ts = append(ts, r.p.intGaugeTimeSeries(MetricAddonAvailable, c.Labels, c.Count))
 	}
-	r.p.writeTimeSeries(ts...)
+	r.p.writeTimeSeries(ctx, ts...)
 }
 
-func (r *gcmNodeRecorder) RecordContainerRestart(labels map[string]string) {
+func (r *gcmNodeRecorder) RecordContainerRestart(ctx context.Context, labels map[string]string) {
 	ts := r.p.intCounterTimeSeries(MetricAddonRestart, labels, 1)
-	r.p.writeTimeSeries(ts)
+	r.p.writeTimeSeries(ctx, ts)
 }
 
-func (r *gcmNodeRecorder) RecordAddonControlPlaneAvailability(labels map[string]string) {
+func (r *gcmNodeRecorder) RecordAddonControlPlaneAvailability(ctx context.Context, labels map[string]string) {
 	ts := r.p.intGaugeTimeSeries(MetricAddonCPAvailable, labels, 1)
-	r.p.writeTimeSeries(ts)
+	r.p.writeTimeSeries(ctx, ts)
 }
 
-func (r *gcmNodeRecorder) RecordNodeConditions(labels []map[string]string) {
+func (r *gcmNodeRecorder) RecordNodeConditions(ctx context.Context, labels []map[string]string) {
 	ts := []*monitoringpb.TimeSeries{}
 	for _, clabel := range labels {
 		ts = append(ts, r.p.intGaugeTimeSeries(MetricNodeCondition, clabel, 1))
 	}
-	r.p.writeTimeSeries(ts...)
+	r.p.writeTimeSeries(ctx, ts...)
 }
 
-func (r *gcmNodeRecorder) RecordNodeAvailability(labels map[string]string) {
+func (r *gcmNodeRecorder) RecordNodeAvailability(ctx context.Context, labels map[string]string) {
 	ts := r.p.intGaugeTimeSeries(MetricNodeAvailable, labels, 1)
-	r.p.writeTimeSeries(ts)
+	r.p.writeTimeSeries(ctx, ts)
 }
 
 type gcmProbeReporter struct {

@@ -36,15 +36,15 @@ func StartClusterRecorder(ctx context.Context, recorder metrics.ClusterRecorder,
 	for {
 		select {
 		case <-t.C:
-			recordClusterMetrics(recorder, watcher.GetNodes(), watcher.GetDaemonSets(), watcher.GetDeployments())
-			fmt.Printf("tick: %s\n", time.Now().Format(time.RFC3339))
+			recordClusterMetrics(ctx, recorder, watcher.GetNodes(), watcher.GetDaemonSets(), watcher.GetDeployments())
+			klog.Infof("tick: %s\n", time.Now().Format(time.RFC3339))
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func recordClusterMetrics(m metrics.ClusterRecorder, nodes []*v1.Node, daemonsets []*appsv1.DaemonSet, deployments []*appsv1.Deployment) {
+func recordClusterMetrics(ctx context.Context, m metrics.ClusterRecorder, nodes []*v1.Node, daemonsets []*appsv1.DaemonSet, deployments []*appsv1.Deployment) {
 	// Report on node conditions
 	conditions := nodeConditions(nodes)
 	conditionCounts := []metrics.LabelCount{}
@@ -54,7 +54,7 @@ func recordClusterMetrics(m metrics.ClusterRecorder, nodes []*v1.Node, daemonset
 			Count:  v.Value,
 		})
 	}
-	m.RecordNodeConditions(conditionCounts)
+	m.RecordNodeConditions(ctx, conditionCounts)
 
 	// Report on node availability (SLI)
 	availabilities, availableNodes := nodeAvailabilities(nodes)
@@ -65,7 +65,7 @@ func recordClusterMetrics(m metrics.ClusterRecorder, nodes []*v1.Node, daemonset
 			Count:  v.Value,
 		})
 	}
-	m.RecordNodeAvailabilities(availabilityCounts)
+	m.RecordNodeAvailabilities(ctx, availabilityCounts)
 
 	// Report on expected addons
 	addonCounts := []metrics.LabelCount{}
@@ -84,7 +84,7 @@ func recordClusterMetrics(m metrics.ClusterRecorder, nodes []*v1.Node, daemonset
 			Count:  count,
 		})
 	}
-	m.RecordAddonCounts(addonCounts)
+	m.RecordAddonCounts(ctx, addonCounts)
 }
 
 type NodeScheduler struct {
@@ -139,7 +139,7 @@ func (s *NodeScheduler) StartReporting(ctx context.Context, watcher k8s.NodeWatc
 		select {
 		case <-t.C:
 			s.recordNodeMetrics(ctx, watcher.GetNodes(), watcher.GetPods(), probes)
-			fmt.Printf("tick: %s\n", time.Now().Format(time.RFC3339))
+			klog.Infof("tick: %s\n", time.Now().Format(time.RFC3339))
 		case <-ctx.Done():
 			return
 		}
@@ -161,7 +161,7 @@ func (s *NodeScheduler) recordNodeMetrics(ctx context.Context, nodes []*v1.Node,
 		}
 		clabels = append(clabels, labels)
 	}
-	s.mr.RecordNodeConditions(clabels)
+	s.mr.RecordNodeConditions(ctx, clabels)
 
 	// Record node availability
 	ready, scheduleable, doneWarming := nodeAvailability(node)
@@ -174,7 +174,7 @@ func (s *NodeScheduler) recordNodeMetrics(ctx context.Context, nodes []*v1.Node,
 		"scheduleable": boolToStr(scheduleable),
 		"done_warming": boolToStr(doneWarming),
 	}
-	s.mr.RecordNodeAvailability(labels)
+	s.mr.RecordNodeAvailability(ctx, labels)
 
 	// Record addon availability
 	// Addon control plane depends on node availability
@@ -218,7 +218,7 @@ func (s *NodeScheduler) recordNodeMetrics(ctx context.Context, nodes []*v1.Node,
 			Count:  len(pods),
 		})
 	}
-	s.mr.RecordAddonAvailabilies(labelCounts)
+	s.mr.RecordAddonAvailabilies(ctx, labelCounts)
 
 	// Record addon control plane availability
 	labels = map[string]string{
@@ -226,11 +226,11 @@ func (s *NodeScheduler) recordNodeMetrics(ctx context.Context, nodes []*v1.Node,
 		"zone":      s.cfg.Location,
 		"available": boolToStr(cpAvailable),
 	}
-	s.mr.RecordAddonControlPlaneAvailability(labels)
+	s.mr.RecordAddonControlPlaneAvailability(ctx, labels)
 }
 
-func (s *NodeScheduler) ContainerRestartHandler() func(pod *v1.Pod, status v1.ContainerStatus) {
-	return func(pod *v1.Pod, status v1.ContainerStatus) {
+func (s *NodeScheduler) ContainerRestartHandler(ctx context.Context) (handler func(pod *v1.Pod, status v1.ContainerStatus)) {
+	handler = func(pod *v1.Pod, status v1.ContainerStatus) {
 		addon, ok := common.AddonFromPod(pod)
 		if !ok {
 			return
@@ -256,8 +256,9 @@ func (s *NodeScheduler) ContainerRestartHandler() func(pod *v1.Pod, status v1.Co
 			"exit_code":      exitCode,
 		}
 		addAddonLabels(addon, labels)
-		s.mr.RecordContainerRestart(labels)
+		s.mr.RecordContainerRestart(ctx, labels)
 	}
+	return
 }
 
 func StartConnectivityProbes(ctx context.Context, recorder metrics.ProbeRecorder, probes probe.ConnectivityProbeMap, interval time.Duration) {
@@ -270,7 +271,7 @@ func StartConnectivityProbes(ctx context.Context, recorder metrics.ProbeRecorder
 		select {
 		case <-t.C:
 			runConnectivityProbes(ctx, recorder, probes)
-			fmt.Printf("tick: %s\n", time.Now().Format(time.RFC3339))
+			klog.Infof("tick: %s\n", time.Now().Format(time.RFC3339))
 		case <-ctx.Done():
 			return
 		}
