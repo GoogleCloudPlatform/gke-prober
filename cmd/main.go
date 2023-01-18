@@ -24,11 +24,13 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
+	"github.com/GoogleCloudPlatform/gke-prober/pkg/healthz"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/k8s"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/probe"
@@ -54,8 +56,9 @@ func main() {
 
 	clientset := k8s.ClientOrDie(cfg.Kubeconfig)
 
-	// also use waitgroup to wait for component termination?
 	ctx, cancel := context.WithCancel(context.Background())
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
 
 	// Initialize metrics pipeline
 	var provider metrics.Provider
@@ -85,6 +88,13 @@ func main() {
 		}
 	}
 
+	//create and launch a server for health-check, including liveness and readiness
+	server := &healthz.Server{}
+	if err := server.New(nil, nil, ":8081", 60*time.Second); err != nil {
+		klog.Warningf("Failed to start the server for health-check, reason: %s", err.Error())
+	}
+	go server.Start(ctx, wg)
+
 	// Expose prometheus endpoint for local process metrics
 	http.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(localPromPort, nil)
@@ -94,7 +104,9 @@ func main() {
 	<-sigs
 
 	cancel()
-	klog.Infof("exiting")
+	klog.Infoln("shutting down gracefully, waiting internal resources to release and tcp connections to disconnect")
+	wg.Wait()
+	klog.Infoln("Shutting Down completed, BYE!")
 }
 
 func getConfig() common.Config {
