@@ -48,6 +48,14 @@ spec:
               fieldPath: metadata.namespace
         - name: METRIC_PREFIX
           value: kube-prober
+        livenessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+          httpGet:
+            port: 8081
+            path: /liveness
         resources:
           requests:
             memory: "64Mi"

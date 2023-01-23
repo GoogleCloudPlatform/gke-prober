@@ -108,6 +108,7 @@ func (s *Server) Healthz() http.HandlerFunc {
 
 		maxTickWait := time.Duration(1.5 * float64(s.interval))
 		tickWait := time.Since(lastTickStart)
+		klog.Infof("Liveness check by kubelet, tickWait is %s\n", tickWait.String())
 		if !lastTickStart.IsZero() && tickWait > maxTickWait {
 			klog.Infof("Failed default Liveness probe, [tickWait]:%d exceeds [maxTickWait]:%d", tickWait, maxTickWait)
 			err := fmt.Sprint("Tick not finished on time")

@@ -34,6 +34,14 @@ spec:
         - /gke-prober
         image: gcr.io/my-gcp-project/gke-prober:latest
         name: gke-prober
+        livenessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+          httpGet:
+            port: 8081
+            path: /liveness
         env:
         - name: PROBER_MODE
           value: node
