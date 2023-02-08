@@ -75,17 +75,17 @@ func main() {
 		w := k8s.NewClusterWatcher(clientset)
 		w.StartClusterWatches(ctx)
 		go scheduler.StartClusterRecorder(ctx, cr, w, cfg.ReportInterval)
+
+		if cfg.ConnProbes {
+			pr := provider.ProbeRecorder()
+			go scheduler.StartClusterProbes(ctx, clientset, pr, probe.ClusterProbes(), cfg.ReportInterval)
+		}
 	} else {
 		nr := provider.NodeRecorder()
 		s := scheduler.NewNodeScheduler(nr, cfg)
 		w := k8s.NewNodeWatcher(clientset, cfg.NodeName)
 		w.StartNodeWatches(ctx, s.ContainerRestartHandler(ctx))
-		go s.StartReporting(ctx, w, probe.GKEProbes(), cfg.ReportInterval)
-
-		if cfg.ConnProbes {
-			pr := provider.ProbeRecorder()
-			go scheduler.StartConnectivityProbes(ctx, pr, probe.ConnectivityProbes(), cfg.ReportInterval)
-		}
+		go s.StartReporting(ctx, w, probe.NodeProbes(), cfg.ReportInterval)
 	}
 
 	//create and launch a server for health-check, including liveness and readiness
@@ -183,7 +183,9 @@ func getEnv() (mode string, nodeIP string, hostNetwork bool, reportInterval time
 	if reportInterval == 0 {
 		reportInterval = DefaultReportInterval
 	}
-	connProbes = os.Getenv("ENABLE_CONNECTIVITY_PROBES") == "true"
+
+	// Enable Cluster Prober to probe the cluster-wide addon services like metrics-server, kube-dns and so on
+	connProbes = os.Getenv("ENABLE_CLUSTER_PROBES") == "true"
 	return
 }
 

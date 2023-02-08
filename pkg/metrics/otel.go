@@ -239,6 +239,8 @@ func (r *otelProbeRecorder) RecordHTTPGetLatency(statusCode int, elapsed time.Du
 	r.httpGetLatencyRecorder.Record(ctx, elapsed.Microseconds(), attributes...)
 }
 
+func (r *otelProbeRecorder) RecordAddonHealth(ctx context.Context, labels []map[string]string) {}
+
 func attributesFromMap(m map[string]string) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{}
 	for k, v := range m {

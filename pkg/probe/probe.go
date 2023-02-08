@@ -21,33 +21,34 @@ import (
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
 const (
-	AvailableUnknown = "Unknown" // AvailableUnknown signifies am indeterminate probe result
+	AvailableUnknown = "Unknown" // AvailableUnknown signifies an indeterminate probe result
 	AvailableTrue    = "True"    // AvailableTrue signifies a result where the probe target is available
 	AvailableFalse   = "False"   // AvailableFalse signifies a result where the probe target is unavailable
 	AvailableError   = "Error"   // AvailableError signifies a result where the probe resulted in an error
 )
 
 var (
-	defaultProbeResult = ProbeResult{Available: AvailableUnknown}
-	resultSuccessful   = ProbeResult{Available: AvailableTrue}
+	defaultProbeResult = Result{Available: AvailableUnknown}
+	resultSuccessful   = Result{Available: AvailableTrue}
 )
 
-type Probe interface {
-	Run(context.Context, *v1.Pod, common.Addon) ProbeResult
+type NodeProbe interface {
+	Run(context.Context, *v1.Pod, common.Addon) Result
 }
 
-type ProbeMap map[string]Probe
+type ProbeMap map[string]NodeProbe
 
-type ProbeResult struct {
+type Result struct {
 	Available string
 	Err       error
 }
 
-func Run(ctx context.Context, probes ProbeMap, pod *v1.Pod, addon common.Addon) ProbeResult {
+func Run(ctx context.Context, probes ProbeMap, pod *v1.Pod, addon common.Addon) Result {
 	result := defaultProbeResult
 	if pr, ok := probes[addon.Name]; ok {
 		result = pr.Run(ctx, pod, addon)
@@ -63,3 +64,9 @@ type ConnectivityProbeMap map[string]ConnectivityProbe
 type ConnectivityProbe interface {
 	Run(context.Context, metrics.ProbeRecorder) error
 }
+
+type ClusterProbe interface {
+	Run(context.Context, *kubernetes.Clientset) Result
+}
+
+type ClusterProbeMap map[string]ClusterProbe

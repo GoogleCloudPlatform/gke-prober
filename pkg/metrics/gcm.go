@@ -36,7 +36,7 @@ const (
 )
 
 type gcmProvider struct {
-	ctx      context.Context
+	// ctx      context.Context
 	client   *monitoring.MetricClient
 	project  string
 	resource *monitoredrespb.MonitoredResource
@@ -94,6 +94,7 @@ func StartGCM(ctx context.Context, cfg common.Config) (*gcmProvider, error) {
 		resource: resource,
 	}
 
+	// A Goroutine usually runs in the backgroud and will close the connection with the CM remote server.
 	go func() {
 		<-ctx.Done()
 		client.Close()
@@ -261,6 +262,13 @@ func (p *gcmProvider) ProbeRecorder() ProbeRecorder {
 
 func (r *gcmProbeReporter) RecordDNSLookupLatency(elapsed time.Duration)               {}
 func (r *gcmProbeReporter) RecordHTTPGetLatency(statusCode int, elapsed time.Duration) {}
+func (r *gcmProbeReporter) RecordAddonHealth(ctx context.Context, labels []map[string]string) {
+	ts := []*monitoringpb.TimeSeries{}
+	for _, clable := range labels {
+		ts = append(ts, r.p.intGaugeTimeSeries(MetricClusterAddonCondition, clable, 1))
+	}
+	r.p.writeTimeSeries(ctx, ts...)
+}
 
 func addonMap(addon common.Addon) map[string]string {
 	return map[string]string{

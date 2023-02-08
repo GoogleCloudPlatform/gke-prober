@@ -49,9 +49,13 @@ func (s *Server) New(lchecks *Checks, rchecks *Checks, addr string, interval tim
 }
 
 func (s *Server) Start(ctx context.Context, wg *sync.WaitGroup) error {
+
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	defer wg.Done()
-	go s.tick(ctx)
-	go s.graceshutdown(ctx)
+
+	go s.tick(cctx)
+	go s.graceshutdown(cctx)
 
 	klog.Infof("[Livenes and Readiness Server]: Lisenting on %s \n", s.httpserver.Addr)
 	if err := s.httpserver.ListenAndServe(); err != nil && err != http.ErrServerClosed {

@@ -16,24 +16,114 @@ package probe
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
+	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2"
 )
 
-func GKEProbes() ProbeMap {
+const (
+	ClusterMetricsApi = "apis/metrics.k8s.io/v1beta1/namespaces/gke-prober-system/pods/"
+)
+
+type PodMetricsList struct {
+	Kind       string `json:"kind"`
+	APIVersion string `json:"apiVersion"`
+	Metadata   struct {
+		SelfLink string `json:"selfLink"`
+	} `json:"metadata"`
+	Items []struct {
+		Metadata struct {
+			Name              string    `json:"name"`
+			Namespace         string    `json:"namespace"`
+			CreationTimestamp time.Time `json:"creationTimestamp"`
+		} `json:"metadata"`
+		Timestamp  time.Time `json:"timestamp"`
+		Window     string    `json:"window"`
+		Containers []struct {
+			Name  string `json:"name"`
+			Usage struct {
+				CPU    string `json:"cpu"`
+				Memory string `json:"memory"`
+			} `json:"usage"`
+		} `json:"containers"`
+	} `json:"items"`
+}
+
+func ClusterProbes() ClusterProbeMap {
+	return ClusterProbeMap{
+		"metrics_server": &metricsServerProbe{},
+		// "kube_dns":      &kubeDnsProbe{},
+	}
+}
+
+type metricsServerProbe struct {
+}
+
+func (p *metricsServerProbe) Run(ctx context.Context, clientset *kubernetes.Clientset) Result {
+
+	var podmetrics PodMetricsList
+	var body []byte
+	var err error
+	body, err = clientset.RESTClient().Get().AbsPath(ClusterMetricsApi).DoRaw(ctx)
+	if err != nil {
+		klog.Warningf("Get metrics from metrics-server returned error %s\n", err.Error())
+		return Result{
+			Available: "Unhealthy",
+			Err:       err,
+		}
+	}
+	if err = json.Unmarshal(body, &podmetrics); err != nil {
+		klog.Warningf("Json parser metrics returned error %s\n", err.Error())
+		return Result{
+			Available: "Unhealthy",
+			Err:       err,
+		}
+	}
+
+	if len(podmetrics.Items) == 0 {
+		err = fmt.Errorf("zero metrics returned\n")
+		klog.Warningf("Get metrics from metrics-server returned error %s\n", err.Error())
+		return Result{
+			Available: "Unhealthy",
+			Err:       err,
+		}
+	}
+
+	str, _ := json.MarshalIndent(podmetrics, "", "\t")
+	klog.Infof("Pod metrics List is %s\n", string(str))
+	err = fmt.Errorf("Metrics-server is operational health")
+	return Result{
+		Available: "Healthy",
+		Err:       err,
+	}
+}
+
+type kubeDnsProbe struct {
+	server string
+}
+
+func (p *kubeDnsProbe) Run(ctx context.Context, pr metrics.ProbeRecorder) error {
+	return nil
+}
+
+func NodeProbes() ProbeMap {
 	return ProbeMap{
 		"fluentbit":           newFluntdProbe(),
 		"gke-metadata-server": newGkeMetadataServerProbe(),
 	}
 }
 
-func resultFromError(err error) ProbeResult {
-	return ProbeResult{
+func resultFromError(err error) Result {
+	return Result{
 		Available: AvailableError,
 		Err:       err,
 	}
@@ -46,7 +136,7 @@ func newFluntdProbe() *fluentdProbe {
 	return &fluentdProbe{}
 }
 
-func (p *fluentdProbe) Run(ctx context.Context, pod *v1.Pod, addon common.Addon) ProbeResult {
+func (p *fluentdProbe) Run(ctx context.Context, pod *v1.Pod, addon common.Addon) Result {
 	ip := pod.Status.HostIP
 	_, err := fetchFluentbitUptime(ip)
 	if err != nil {
@@ -76,7 +166,7 @@ func newGkeMetadataServerProbe() *gkeMetadataServerProbe {
 	return &gkeMetadataServerProbe{}
 }
 
-func (p *gkeMetadataServerProbe) Run(ctx context.Context, pod *v1.Pod, addon common.Addon) ProbeResult {
+func (p *gkeMetadataServerProbe) Run(ctx context.Context, pod *v1.Pod, addon common.Addon) Result {
 	_, err := metadata.Email("default")
 	if err != nil {
 		err = fmt.Errorf("metadata.Email(default) returned %v", err)

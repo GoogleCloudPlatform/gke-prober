@@ -255,5 +255,7 @@ See [Create Custom Metrics using API](*https://cloud.google.com/monitoring/custo
 
 ## Future Improvements
 1. For goroutine synchronization, shall we use sync.waitgroup in additon to the context to make sure the main exits until after all work routines clean up their ongoing works
-1. Live/Readiness prober to be added to the probe pods
-1. Store resources status in a local cache?
+1. Live/Readiness prober to be added to the probe pods (DONE)
+1. Expose components metrics using Google Mananged Promethues?
+1. Some GKE components on user nodes run as a service. Probe the service IP? (Probing the clsuter-wide services depends on the connectivity between nodes and nodes connnectivity with the kube-apiserver)
+1. Makes sense to probe the metrics-server using its clusterIP becasue it's end-2-end functioning heaviliy relies on the connectivity.

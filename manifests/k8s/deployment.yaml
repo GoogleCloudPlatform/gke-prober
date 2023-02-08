@@ -48,6 +48,8 @@ spec:
               fieldPath: metadata.namespace
         - name: METRIC_PREFIX
           value: kube-prober
+        - name: ENABLE_CLUSTER_PROBES
+          value: "true"
         livenessProbe:
           initialDelaySeconds: 10
           periodSeconds: 10

@@ -25,6 +25,7 @@ const (
 	MetricClusterAddonsExpected = "cluster/addons_expected"
 	MetricClusterNodeAvailable  = "cluster/node_available"
 	MetricClusterNodeCondition  = "cluster/node_condition"
+	MetricClusterAddonCondition = "cluster/probe/addons_condition"
 	MetricAddonAvailable        = "addon/available"
 	MetricAddonCPAvailable      = "addon/control_plane_available"
 	MetricAddonRestart          = "addon/restart"
@@ -132,4 +133,12 @@ type NodeRecorder interface {
 type ProbeRecorder interface {
 	RecordDNSLookupLatency(elapsed time.Duration)
 	RecordHTTPGetLatency(statusCode int, elapsed time.Duration)
+
+	// cluster/probe/addon
+	// Entity: k8s_cluster
+	// Label: name / Value: (name of addon)
+	// Label: condition / Value: (Healthy/Unhealthy)
+	// Label: reason / Value: Err messages
+	// Value: 1
+	RecordAddonHealth(ctx context.Context, labels []map[string]string)
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/probe"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
@@ -37,7 +38,7 @@ func StartClusterRecorder(ctx context.Context, recorder metrics.ClusterRecorder,
 		select {
 		case <-t.C:
 			recordClusterMetrics(ctx, recorder, watcher.GetNodes(), watcher.GetDaemonSets(), watcher.GetDeployments())
-			klog.Infof("tick: %s\n", time.Now().Format(time.RFC3339))
+			klog.Infof("Cluster metrics collection tick: %s\n", time.Now().Format(time.RFC3339))
 		case <-ctx.Done():
 			return
 		}
@@ -139,7 +140,7 @@ func (s *NodeScheduler) StartReporting(ctx context.Context, watcher k8s.NodeWatc
 		select {
 		case <-t.C:
 			s.recordNodeMetrics(ctx, watcher.GetNodes(), watcher.GetPods(), probes)
-			klog.Infof("tick: %s\n", time.Now().Format(time.RFC3339))
+			klog.Infof("Node metrics collection tick: %s\n", time.Now().Format(time.RFC3339))
 		case <-ctx.Done():
 			return
 		}
@@ -261,8 +262,10 @@ func (s *NodeScheduler) ContainerRestartHandler(ctx context.Context) (handler fu
 	return
 }
 
-func StartConnectivityProbes(ctx context.Context, recorder metrics.ProbeRecorder, probes probe.ConnectivityProbeMap, interval time.Duration) {
-	klog.Infoln("Starting connectivity probes.")
+func StartClusterProbes(ctx context.Context, clientset *kubernetes.Clientset,
+	recorder metrics.ProbeRecorder, probes probe.ClusterProbeMap, interval time.Duration) {
+
+	klog.Infoln("Starting to probe the Cluster-wide addon components.")
 
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -270,12 +273,29 @@ func StartConnectivityProbes(ctx context.Context, recorder metrics.ProbeRecorder
 	for {
 		select {
 		case <-t.C:
-			runConnectivityProbes(ctx, recorder, probes)
-			klog.Infof("tick: %s\n", time.Now().Format(time.RFC3339))
+			recordClusterProbeMetrics(ctx, clientset, recorder, probes)
+			klog.Infof("Cluster Prober tick: %s\n", time.Now().Format(time.RFC3339))
 		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+func recordClusterProbeMetrics(ctx context.Context, clientset *kubernetes.Clientset,
+	recorder metrics.ProbeRecorder, probes probe.ClusterProbeMap) {
+
+	var res probe.Result
+	clabels := []map[string]string{}
+	for addon, probe := range probes {
+		res = probe.Run(ctx, clientset)
+		labels := map[string]string{
+			"name":      addon,
+			"condition": res.Available,
+			"reason":    res.Err.Error(),
+		}
+		clabels = append(clabels, labels)
+	}
+	recorder.RecordAddonHealth(ctx, clabels)
 }
 
 func runConnectivityProbes(ctx context.Context, recorder metrics.ProbeRecorder, probes probe.ConnectivityProbeMap) {
