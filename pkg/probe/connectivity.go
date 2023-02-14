@@ -16,8 +16,6 @@ package probe
 
 import (
 	"context"
-	"fmt"
-	"net"
 	"net/http"
 	"time"
 
@@ -25,14 +23,14 @@ import (
 )
 
 const (
-	dnsLookupHost = "google.com"
-	httpGetURL    = "http://googleapis.com/generate_204"
+	// dnsLookupHost = "google.com"
+	httpGetURL = "http://googleapis.com/generate_204"
 )
 
 func ConnectivityProbes() ConnectivityProbeMap {
 	return ConnectivityProbeMap{
-		"http_get":   newHTTPGetProbe(),
-		"dns_lookup": newDnsLookupProbe(),
+		"http_get": newHTTPGetProbe(),
+		// "dns_lookup": newDnsLookupProbe(),
 	}
 }
 
@@ -57,7 +55,7 @@ func (p *httpGetProbe) Run(ctx context.Context, pr metrics.ProbeRecorder) error 
 	return nil
 }
 
-type dnsLookupProbe struct {
+/* type dnsLookupProbe struct {
 	host string
 }
 
@@ -78,4 +76,4 @@ func (p *dnsLookupProbe) Run(ctx context.Context, pr metrics.ProbeRecorder) erro
 	}
 	pr.RecordDNSLookupLatency(time.Since(start))
 	return nil
-}
+} */

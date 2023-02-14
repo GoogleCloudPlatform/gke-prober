@@ -55,10 +55,7 @@ func main() {
 	// fmt.Printf("starting with config: %+v\n", cfg)
 
 	clientset := k8s.ClientOrDie(cfg.Kubeconfig)
-
 	ctx, cancel := context.WithCancel(context.Background())
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
 
 	// Initialize metrics pipeline
 	var provider metrics.Provider
@@ -76,7 +73,7 @@ func main() {
 		w.StartClusterWatches(ctx)
 		go scheduler.StartClusterRecorder(ctx, cr, w, cfg.ReportInterval)
 
-		if cfg.ConnProbes {
+		if cfg.ClusterProbes {
 			pr := provider.ProbeRecorder()
 			go scheduler.StartClusterProbes(ctx, clientset, pr, probe.ClusterProbes(), cfg.ReportInterval)
 		}
@@ -88,6 +85,8 @@ func main() {
 		go s.StartReporting(ctx, w, probe.NodeProbes(), cfg.ReportInterval)
 	}
 
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
 	//create and launch a server for health-check, including liveness and readiness
 	server := &healthz.Server{}
 	if err := server.New(nil, nil, ":8081", 60*time.Second); err != nil {
@@ -110,7 +109,7 @@ func main() {
 }
 
 func getConfig() common.Config {
-	mode, nodeIP, hostNetwork, reportInterval, connProbes := getEnv()
+	mode, nodeIP, hostNetwork, reportInterval, connProbes, clusterProbes := getEnv()
 	kubeconfig := getKubeconfig()
 	projectID, location, cluster, nodeName := getMetadata(mode)
 	nodepool := getNodepool(nodeName, cluster)
@@ -127,6 +126,7 @@ func getConfig() common.Config {
 		HostNetwork:    hostNetwork,
 		ReportInterval: reportInterval,
 		ConnProbes:     connProbes,
+		ClusterProbes:  clusterProbes,
 		UserAgent:      common.UserAgent,
 		MetricPrefix:   common.MetricPrefix,
 	}
@@ -169,7 +169,7 @@ func getKubeconfig() string {
 }
 
 // TODO: consider better error handling
-func getEnv() (mode string, nodeIP string, hostNetwork bool, reportInterval time.Duration, connProbes bool) {
+func getEnv() (mode string, nodeIP string, hostNetwork bool, reportInterval time.Duration, connProbes, clusterProbes bool) {
 	mode = os.Getenv("PROBER_MODE")
 	if mode == "" {
 		mode = DefaultMode
@@ -185,7 +185,9 @@ func getEnv() (mode string, nodeIP string, hostNetwork bool, reportInterval time
 	}
 
 	// Enable Cluster Prober to probe the cluster-wide addon services like metrics-server, kube-dns and so on
-	connProbes = os.Getenv("ENABLE_CLUSTER_PROBES") == "true"
+	clusterProbes = os.Getenv("ENABLE_CLUSTER_PROBES") == "true"
+
+	connProbes = os.Getenv("ENABLE_CONNECTIVITY_PROBES") == "true"
 	return
 }
 

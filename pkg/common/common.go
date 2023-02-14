@@ -50,6 +50,7 @@ type Config struct {
 	HostNetwork    bool
 	ReportInterval time.Duration
 	ConnProbes     bool
+	ClusterProbes  bool
 	UserAgent      string
 	MetricPrefix   string
 }

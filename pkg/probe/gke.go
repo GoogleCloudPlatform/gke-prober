@@ -19,19 +19,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
-	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
 const (
-	ClusterMetricsApi = "apis/metrics.k8s.io/v1beta1/namespaces/gke-prober-system/pods/"
+	clusterMetricsApi = "apis/metrics.k8s.io/v1beta1/namespaces/gke-prober-system/pods/"
+	dnsLookupHost     = "kubernetes.default.svc.cluster.local"
 )
 
 type PodMetricsList struct {
@@ -61,7 +62,7 @@ type PodMetricsList struct {
 func ClusterProbes() ClusterProbeMap {
 	return ClusterProbeMap{
 		"metrics_server": &metricsServerProbe{},
-		// "kube_dns":      &kubeDnsProbe{},
+		"kube_dns":       &kubeDnsProbe{host: dnsLookupHost},
 	}
 }
 
@@ -73,7 +74,7 @@ func (p *metricsServerProbe) Run(ctx context.Context, clientset *kubernetes.Clie
 	var podmetrics PodMetricsList
 	var body []byte
 	var err error
-	body, err = clientset.RESTClient().Get().AbsPath(ClusterMetricsApi).DoRaw(ctx)
+	body, err = clientset.RESTClient().Get().AbsPath(clusterMetricsApi).DoRaw(ctx)
 	if err != nil {
 		klog.Warningf("Get metrics from metrics-server returned error %s\n", err.Error())
 		return Result{
@@ -98,8 +99,8 @@ func (p *metricsServerProbe) Run(ctx context.Context, clientset *kubernetes.Clie
 		}
 	}
 
-	str, _ := json.MarshalIndent(podmetrics, "", "\t")
-	klog.Infof("Pod metrics List is %s\n", string(str))
+	// str, _ := json.MarshalIndent(podmetrics, "", "\t")
+	// klog.Infof("Pod metrics List is %s\n", string(str))
 	err = fmt.Errorf("Metrics-server is operational health")
 	return Result{
 		Available: "Healthy",
@@ -108,11 +109,32 @@ func (p *metricsServerProbe) Run(ctx context.Context, clientset *kubernetes.Clie
 }
 
 type kubeDnsProbe struct {
-	server string
+	host string
 }
 
-func (p *kubeDnsProbe) Run(ctx context.Context, pr metrics.ProbeRecorder) error {
-	return nil
+func (p *kubeDnsProbe) Run(context.Context, *kubernetes.Clientset) Result {
+	ips, err := net.LookupIP(p.host)
+	if err != nil {
+		klog.Warningf("Dns Lookup response failed from KubeDNS: %s\n", err.Error())
+		return Result{
+			Available: "Unhealthy",
+			Err:       err,
+		}
+	}
+	if len(ips) == 0 {
+		err = fmt.Errorf("no IPs returned in dns lookup response from KubeDNS")
+		return Result{
+			Available: "Unhealthy",
+			Err:       err,
+		}
+	}
+
+	klog.Infof("Dns lookup responses from KubeDNS returns  %s\n", ips[0])
+	err = fmt.Errorf("KubeDNS is operational health")
+	return Result{
+		Available: "Healthy",
+		Err:       err,
+	}
 }
 
 func NodeProbes() ProbeMap {
