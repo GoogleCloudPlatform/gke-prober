@@ -86,7 +86,7 @@ func (s *Server) tick(ctx context.Context) {
 		case <-t.C:
 			s.tickStatusMux.Lock()
 			s.tickLastStart = time.Now()
-			klog.Infof("Health-check server alive, last tick [%s],", s.tickLastStart.Format(time.RFC3339))
+			klog.V(1).Infof("Health-check server alive, last tick [%s],", s.tickLastStart.Format(time.RFC3339))
 			s.tickStatusMux.Unlock()
 		case <-ctx.Done():
 			return
@@ -112,9 +112,9 @@ func (s *Server) Healthz() http.HandlerFunc {
 
 		maxTickWait := time.Duration(1.5 * float64(s.interval))
 		tickWait := time.Since(lastTickStart)
-		klog.Infof("Liveness check by kubelet, tickWait is %s\n", tickWait.String())
+		klog.V(2).Infof("Liveness check by kubelet, tickWait is %s\n", tickWait.String())
 		if !lastTickStart.IsZero() && tickWait > maxTickWait {
-			klog.Infof("Failed default Liveness probe, [tickWait]:%d exceeds [maxTickWait]:%d", tickWait, maxTickWait)
+			klog.Warningf("Failed default Liveness probe, [tickWait]:%d exceeds [maxTickWait]:%d", tickWait, maxTickWait)
 			err := fmt.Sprint("Tick not finished on time")
 			errs = append(errs, Error{
 				Name:    "Default liveness probe",

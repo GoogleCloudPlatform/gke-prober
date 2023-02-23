@@ -48,8 +48,12 @@ const (
 	DefaultReportInterval = time.Duration(1 * time.Minute)
 )
 
+var (
+	kubeconfig string
+)
+
 func main() {
-	klog.InitFlags(nil)
+
 	cfg := getConfig()
 	klog.Infof("starting with config: %+v\n", cfg)
 	// fmt.Printf("starting with config: %+v\n", cfg)
@@ -72,7 +76,6 @@ func main() {
 		w := k8s.NewClusterWatcher(clientset)
 		w.StartClusterWatches(ctx)
 		go scheduler.StartClusterRecorder(ctx, cr, w, cfg.ReportInterval)
-
 		if cfg.ClusterProbes {
 			pr := provider.ProbeRecorder()
 			go scheduler.StartClusterProbes(ctx, clientset, pr, probe.ClusterProbes(), cfg.ReportInterval)
@@ -109,8 +112,8 @@ func main() {
 }
 
 func getConfig() common.Config {
-	mode, nodeIP, hostNetwork, reportInterval, connProbes, clusterProbes := getEnv()
-	kubeconfig := getKubeconfig()
+	mode, nodeIP, hostNetwork, reportInterval, connProbes, clusterProbes, nodeProbes := getEnv()
+	// kubeconfig := getKubeconfig()
 	projectID, location, cluster, nodeName := getMetadata(mode)
 	nodepool := getNodepool(nodeName, cluster)
 
@@ -127,6 +130,7 @@ func getConfig() common.Config {
 		ReportInterval: reportInterval,
 		ConnProbes:     connProbes,
 		ClusterProbes:  clusterProbes,
+		NodeProbes:     nodeProbes,
 		UserAgent:      common.UserAgent,
 		MetricPrefix:   common.MetricPrefix,
 	}
@@ -157,19 +161,19 @@ func getMetadata(mode string) (project, location, cluster, nodename string) {
 	return
 }
 
-func getKubeconfig() string {
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
-	return *kubeconfig
-}
+// func getKubeconfig() string {
+// 	var kubeconfig *string
+// 	if home := homedir.HomeDir(); home != "" {
+// 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+// 	} else {
+// 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+// 	}
+// 	flag.Parse()
+// 	return *kubeconfig
+// }
 
 // TODO: consider better error handling
-func getEnv() (mode string, nodeIP string, hostNetwork bool, reportInterval time.Duration, connProbes, clusterProbes bool) {
+func getEnv() (mode string, nodeIP string, hostNetwork bool, reportInterval time.Duration, connProbes, clusterProbes, nodeProbes bool) {
 	mode = os.Getenv("PROBER_MODE")
 	if mode == "" {
 		mode = DefaultMode
@@ -186,7 +190,7 @@ func getEnv() (mode string, nodeIP string, hostNetwork bool, reportInterval time
 
 	// Enable Cluster Prober to probe the cluster-wide addon services like metrics-server, kube-dns and so on
 	clusterProbes = os.Getenv("ENABLE_CLUSTER_PROBES") == "true"
-
+	nodeProbes = os.Getenv("ENABLE_NODE_PROBES") == "true"
 	connProbes = os.Getenv("ENABLE_CONNECTIVITY_PROBES") == "true"
 	return
 }
@@ -197,4 +201,15 @@ func getNodepool(nodename, clustername string) string {
 	pool := strings.TrimPrefix(nodename, fmt.Sprintf("gke-%s-", clustername))
 	// Strip off ending node identifiers ("-13a25f43-chwu")
 	return pool[:len(pool)-14]
+}
+
+func init() {
+	//flag.StringVar(&v, "verbose", "", "logggig verbosity")
+	if home := homedir.HomeDir(); home != "" {
+		flag.StringVar(&kubeconfig, "kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		flag.StringVar(&kubeconfig, "kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	klog.InitFlags(nil)
+	flag.Parse()
 }

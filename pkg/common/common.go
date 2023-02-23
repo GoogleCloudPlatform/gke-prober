@@ -51,6 +51,7 @@ type Config struct {
 	ReportInterval time.Duration
 	ConnProbes     bool
 	ClusterProbes  bool
+	NodeProbes     bool
 	UserAgent      string
 	MetricPrefix   string
 }

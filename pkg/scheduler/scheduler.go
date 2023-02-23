@@ -240,11 +240,11 @@ func (s *NodeScheduler) ContainerRestartHandler(ctx context.Context) (handler fu
 		state := status.LastTerminationState.Terminated
 		var reason, exitCode string
 		if state != nil {
-			klog.Infof("container %q restarted because of %s (%d)\n", status.Name, state.Reason, state.ExitCode)
+			klog.V(1).Infof("container %q restarted because of %s (%d)\n", status.Name, state.Reason, state.ExitCode)
 			reason = state.Reason
 			exitCode = fmt.Sprint(state.ExitCode)
 		} else {
-			klog.Infof("container %q restarted but termination reason unknown\n", status.Name)
+			klog.V(1).Infof("container %q restarted but termination reason unknown\n", status.Name)
 			reason = "unknown"
 			exitCode = "unknown"
 		}
@@ -274,7 +274,7 @@ func StartClusterProbes(ctx context.Context, clientset *kubernetes.Clientset,
 		select {
 		case <-t.C:
 			recordClusterProbeMetrics(ctx, clientset, recorder, probes)
-			klog.Infof("Cluster Prober tick: %s\n", time.Now().Format(time.RFC3339))
+			klog.V(1).Infof("Cluster Prober tick: %s\n", time.Now().Format(time.RFC3339))
 		case <-ctx.Done():
 			return
 		}

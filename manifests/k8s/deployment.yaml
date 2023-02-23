@@ -31,10 +31,11 @@ spec:
     spec:
       serviceAccountName: gke-prober
       containers:
-      - command:
-        - /gke-prober
+      - name: gke-prober
         image: gcr.io/my-gcp-project/gke-prober:latest
-        name: gke-prober
+        command: ["/gke-prober"]
+        args:
+        - -v=1
         env:
         - name: POD_NAME
           valueFrom:

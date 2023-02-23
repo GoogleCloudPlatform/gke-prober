@@ -69,6 +69,10 @@ func ClusterProbes() ClusterProbeMap {
 type metricsServerProbe struct {
 }
 
+type kubeDnsProbe struct {
+	host string
+}
+
 func (p *metricsServerProbe) Run(ctx context.Context, clientset *kubernetes.Clientset) Result {
 
 	var podmetrics PodMetricsList
@@ -99,17 +103,13 @@ func (p *metricsServerProbe) Run(ctx context.Context, clientset *kubernetes.Clie
 		}
 	}
 
-	// str, _ := json.MarshalIndent(podmetrics, "", "\t")
-	// klog.Infof("Pod metrics List is %s\n", string(str))
+	str, _ := json.MarshalIndent(podmetrics, "", "\t")
+	klog.V(2).Infof("Pod metrics List is %s\n", string(str))
 	err = fmt.Errorf("Metrics-server is operational health")
 	return Result{
 		Available: "Healthy",
 		Err:       err,
 	}
-}
-
-type kubeDnsProbe struct {
-	host string
 }
 
 func (p *kubeDnsProbe) Run(context.Context, *kubernetes.Clientset) Result {
@@ -129,7 +129,7 @@ func (p *kubeDnsProbe) Run(context.Context, *kubernetes.Clientset) Result {
 		}
 	}
 
-	klog.Infof("Dns lookup responses from KubeDNS returns  %s\n", ips[0])
+	klog.V(1).Infof("Dns lookup responses from KubeDNS returns  %s\n", ips[0])
 	err = fmt.Errorf("KubeDNS is operational health")
 	return Result{
 		Available: "Healthy",
