@@ -15,18 +15,23 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
-	ModeNode    = "node"
-	ModeCluster = "cluster"
+	DefaultMode           = "cluster"
+	DefaultReportInterval = time.Duration(1 * time.Minute)
+	ModeNode              = "node"
+	ModeCluster           = "cluster"
 
 	UserAgent = "google-pso-tool/gke-prober/v0.0.2"
 
@@ -42,7 +47,6 @@ type Config struct {
 	ProjectID      string
 	Location       string
 	Cluster        string
-	Kubeconfig     string
 	Mode           string
 	NodeName       string
 	NodeIP         string
@@ -126,6 +130,72 @@ func addonMetaFromObjectMeta(m metav1.ObjectMeta) (string, string, bool) {
 		return "", "", false
 	}
 	return m.Annotations[AddonNameAnnotation], m.Annotations[AddonVersionAnnotation], true
+}
+
+func GetConfig() Config {
+	mode := os.Getenv("PROBER_MODE")
+	if mode == "" {
+		mode = DefaultMode
+	}
+	nodeIP := os.Getenv("NODE_IP")
+	if mode == ModeNode && nodeIP == "" {
+		panic(errors.New("can't determine node IP for node mode"))
+	}
+	hostNetwork := os.Getenv("POD_IP") == nodeIP
+	reportInterval, _ := time.ParseDuration(os.Getenv("REPORT_INTERVAL"))
+	if reportInterval == 0 {
+		reportInterval = DefaultReportInterval
+	}
+
+	// Enable Cluster Prober to probe the cluster-wide addon services like metrics-server, kube-dns and so on
+	clusterProbes := os.Getenv("ENABLE_CLUSTER_PROBES") == "true"
+	nodeProbes := os.Getenv("ENABLE_NODE_PROBES") == "true"
+	connProbes := os.Getenv("ENABLE_CONNECTIVITY_PROBES") == "true"
+	projectID, location, clusterName, nodeName := getMetadata(mode)
+
+	pool := strings.TrimPrefix(nodeName, fmt.Sprintf("gke-%s-", clusterName))
+	// Strip off ending node identifiers ("-13a25f43-chwu")
+	pool = pool[:len(pool)-14]
+
+	return Config{
+		ProjectID:      projectID,
+		Location:       location,
+		Cluster:        clusterName,
+		Mode:           mode,
+		NodeName:       nodeName,
+		NodeIP:         nodeIP,
+		Nodepool:       pool,
+		HostNetwork:    hostNetwork,
+		ReportInterval: reportInterval,
+		ConnProbes:     connProbes,
+		ClusterProbes:  clusterProbes,
+		NodeProbes:     nodeProbes,
+		UserAgent:      UserAgent,
+		MetricPrefix:   MetricPrefix,
+	}
+}
+
+// Returns best effort for: project, location, cluster name
+func getMetadata(mode string) (project, location, cluster, nodename string) {
+	project, _ = metadata.ProjectID()
+	location = "local"
+	switch mode {
+	case ModeCluster:
+		// For regional clusters, this will be a region rather than zone
+		location, _ = metadata.InstanceAttributeValue("cluster-location")
+	case ModeNode:
+		location, _ = metadata.Zone()
+	}
+	cluster, _ = metadata.InstanceAttributeValue("cluster-name")
+	// We would normally use metadata.InstanceName() but alas,
+	// that is not available via the GKE metadata server
+	var err error
+	if nodename, err = metadata.Hostname(); err != nil {
+		panic(fmt.Errorf("can't determine hostname from metadata server: %v\n", err))
+	}
+	// Remove domain portions
+	nodename = strings.Split(nodename, ".")[0]
+	return
 }
 
 func init() {

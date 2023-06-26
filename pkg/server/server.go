@@ -1,4 +1,18 @@
-package healthz
+// Copyright 2022 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package server
 
 import (
 	"context"
@@ -8,6 +22,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
+	"github.com/GoogleCloudPlatform/gke-prober/pkg/k8s"
+	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
+	"github.com/GoogleCloudPlatform/gke-prober/pkg/probe"
+	"github.com/GoogleCloudPlatform/gke-prober/pkg/scheduler"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
 )
 
@@ -24,12 +44,13 @@ type Server struct {
 }
 
 // New return a http server instnace
-func (s *Server) New(lchecks *Checks, rchecks *Checks, addr string, interval time.Duration) error {
+func NewServer(lchecks *Checks, rchecks *Checks, interval time.Duration) *Server {
 
+	s := &Server{}
 	s.interval = interval
 	mux := http.NewServeMux()
-	// mux.Handle("/healthz", rchecks.Healthz())
 
+	// Register probers (liveness and Readiness)
 	// The default liveness probe is tickSerivce unless specified
 	if lchecks != nil {
 		mux.Handle("/liveness", lchecks.Healthz())
@@ -38,31 +59,53 @@ func (s *Server) New(lchecks *Checks, rchecks *Checks, addr string, interval tim
 	}
 
 	s.httpserver = &http.Server{
-		Addr:         addr,
+		Addr:         ":8080",
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
 	}
 
-	return nil
+	return s
 }
 
-func (s *Server) Start(ctx context.Context, wg *sync.WaitGroup) error {
+func (s *Server) RunUntil(ctx context.Context, wg *sync.WaitGroup, kubeconfig string) {
 
-	cctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	defer wg.Done()
 
-	go s.tick(cctx)
-	go s.graceshutdown(cctx)
+	go s.tick(ctx)
+	go s.graceshutdown(ctx)
+
+	cfg := common.GetConfig()
+	klog.Infof("starting the server with config: %+v\n", cfg)
+
+	clientset := k8s.ClientOrDie(kubeconfig)
+	provider, err := metrics.StartGCM(ctx, cfg)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	if cfg.Mode == common.ModeCluster {
+		cr := provider.ClusterRecorder()
+		w := k8s.NewClusterWatcher(clientset)
+		w.StartClusterWatches(ctx)
+		go scheduler.StartClusterRecorder(ctx, cr, w, cfg.ReportInterval)
+		if cfg.ClusterProbes {
+			pr := provider.ProbeRecorder()
+			go scheduler.StartClusterProbes(ctx, clientset, pr, probe.ClusterProbes(), cfg.ReportInterval)
+		}
+	} else {
+		nr := provider.NodeRecorder()
+		s := scheduler.NewNodeScheduler(nr, cfg)
+		w := k8s.NewNodeWatcher(clientset, cfg.NodeName)
+		w.StartNodeWatches(ctx, s.ContainerRestartHandler(ctx))
+		go s.StartReporting(ctx, w, probe.NodeProbes(), cfg.ReportInterval)
+	}
 
 	klog.Infof("[Livenes and Readiness Server]: Lisenting on %s \n", s.httpserver.Addr)
 	if err := s.httpserver.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		klog.Warningf("[Livenes and Readiness Server]: Could not listen on %s, [Reason]: %s", s.httpserver.Addr, err.Error())
 	}
-
-	return nil
 }
 
 func (s *Server) graceshutdown(ctx context.Context) {

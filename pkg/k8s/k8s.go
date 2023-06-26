@@ -120,6 +120,7 @@ type ClusterWatcher interface {
 	GetDaemonSets() []*appsv1.DaemonSet
 	GetDeployments() []*appsv1.Deployment
 	GetNodes() []*v1.Node
+	StartClusterWatches(ctx context.Context)
 }
 type clusterWatcher struct {
 	DaemonSetInformer  cache.SharedInformer
@@ -127,7 +128,7 @@ type clusterWatcher struct {
 	NodeInformer       cache.SharedInformer
 }
 
-func NewClusterWatcher(cs *kubernetes.Clientset) *clusterWatcher {
+func NewClusterWatcher(cs *kubernetes.Clientset) ClusterWatcher {
 	daemonSetInformer := appsinformers.NewDaemonSetInformer(cs, metav1.NamespaceSystem, 0, cache.Indexers{})
 	deploymentInformer := appsinformers.NewDeploymentInformer(cs, metav1.NamespaceSystem, 0, cache.Indexers{})
 	nodeInformer := informers.NewNodeInformer(cs, 0, cache.Indexers{})

@@ -39,6 +39,10 @@ var (
 	cluster  string
 )
 
+var (
+	kubeconfig string
+)
+
 func main() {
 
 	klog.InitFlags(nil)
@@ -61,7 +65,6 @@ func main() {
 		ProjectID:      project,
 		Location:       location,
 		Cluster:        cluster,
-		Kubeconfig:     getKubeconfig(),
 		Mode:           common.ModeCluster,
 		NodeName:       "",
 		NodeIP:         "",
@@ -75,7 +78,7 @@ func main() {
 
 	klog.Infof("starting gke-prober locally with config: %+v\n", cfg)
 
-	clientset := k8s.ClientOrDie(cfg.Kubeconfig)
+	clientset := k8s.ClientOrDie(kubeconfig)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

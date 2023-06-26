@@ -36,7 +36,6 @@ const (
 )
 
 type gcmProvider struct {
-	// ctx      context.Context
 	client   *monitoring.MetricClient
 	project  string
 	resource *monitoredrespb.MonitoredResource
