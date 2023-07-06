@@ -15,8 +15,6 @@
 package k8s
 
 import (
-	"context"
-
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +25,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 )
 
 func ClientOrDie(kubeconfig string) *kubernetes.Clientset {
@@ -49,14 +48,15 @@ func ClientOrDie(kubeconfig string) *kubernetes.Clientset {
 type NodeWatcher interface {
 	GetPods() []*v1.Pod
 	GetNodes() []*v1.Node
-}
-type nodeWatcher struct {
-	NodeInformer            cache.SharedInformer
-	PodInformer             cache.SharedInformer
-	containerRestartHandler func(pod *v1.Pod, status v1.ContainerStatus)
+	StartNodeWatches(<-chan struct{})
 }
 
-func NewNodeWatcher(cs *kubernetes.Clientset, nodeName string) *nodeWatcher {
+type nodeWatcher struct {
+	NodeInformer cache.SharedInformer
+	PodInformer  cache.SharedInformer
+}
+
+func NewNodeWatcher(cs *kubernetes.Clientset, nodeName string) NodeWatcher {
 	nodeInformer := informers.NewFilteredNodeInformer(cs, 0, cache.Indexers{}, func(options *metav1.ListOptions) {
 		options.FieldSelector = fields.OneTermEqualSelector("metadata.name", nodeName).String()
 	})
@@ -71,6 +71,10 @@ func NewNodeWatcher(cs *kubernetes.Clientset, nodeName string) *nodeWatcher {
 }
 
 func (w *nodeWatcher) GetPods() []*v1.Pod {
+	if !w.PodInformer.HasSynced() {
+		klog.V(1).Infoln("cache for pod informer has not fully synced")
+		return nil
+	}
 	pods := []*v1.Pod{}
 	for _, p := range w.PodInformer.GetStore().List() {
 		p := p.(*v1.Pod)
@@ -80,6 +84,10 @@ func (w *nodeWatcher) GetPods() []*v1.Pod {
 }
 
 func (w *nodeWatcher) GetNodes() []*v1.Node {
+	if !w.NodeInformer.HasSynced() {
+		klog.V(1).Infoln("cache for node informer has not fully synced")
+		return nil
+	}
 	nodes := []*v1.Node{}
 	for _, n := range w.NodeInformer.GetStore().List() {
 		n := n.(*v1.Node)
@@ -88,21 +96,12 @@ func (w *nodeWatcher) GetNodes() []*v1.Node {
 	return nodes
 }
 
-func (w *nodeWatcher) StartNodeWatches(ctx context.Context, restartHandler func(pod *v1.Pod, status v1.ContainerStatus)) {
-	w.containerRestartHandler = restartHandler
-	stop := make(chan struct{})
-	w.PodInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		UpdateFunc: w.detectRestart,
-	})
-	go w.NodeInformer.Run(stop)
-	go w.PodInformer.Run(stop)
-	go func() {
-		<-ctx.Done()
-		close(stop)
-	}()
+func (w *nodeWatcher) StartNodeWatches(stopCh <-chan struct{}) {
+	go w.NodeInformer.Run(stopCh)
+	go w.PodInformer.Run(stopCh)
 }
 
-func (w *nodeWatcher) detectRestart(old, new interface{}) {
+/* func (w *nodeWatcher) detectRestart(old, new interface{}) {
 	oldPod := old.(*v1.Pod)
 	newPod := new.(*v1.Pod)
 	for _, newStatus := range newPod.Status.ContainerStatuses {
@@ -114,14 +113,15 @@ func (w *nodeWatcher) detectRestart(old, new interface{}) {
 			}
 		}
 	}
-}
+} */
 
 type ClusterWatcher interface {
 	GetDaemonSets() []*appsv1.DaemonSet
 	GetDeployments() []*appsv1.Deployment
 	GetNodes() []*v1.Node
-	StartClusterWatches(ctx context.Context)
+	StartClusterWatches(<-chan struct{})
 }
+
 type clusterWatcher struct {
 	DaemonSetInformer  cache.SharedInformer
 	DeploymentInformer cache.SharedInformer
@@ -140,18 +140,18 @@ func NewClusterWatcher(cs *kubernetes.Clientset) ClusterWatcher {
 	}
 }
 
-func (w *clusterWatcher) StartClusterWatches(ctx context.Context) {
-	stop := make(chan struct{})
-	go w.DaemonSetInformer.Run(stop)
-	go w.DeploymentInformer.Run(stop)
-	go w.NodeInformer.Run(stop)
-	go func() {
-		<-ctx.Done()
-		close(stop)
-	}()
+func (w *clusterWatcher) StartClusterWatches(stopCh <-chan struct{}) {
+	// stop := make(chan struct{})
+	go w.DaemonSetInformer.Run(stopCh)
+	go w.DeploymentInformer.Run(stopCh)
+	go w.NodeInformer.Run(stopCh)
 }
 
 func (w *clusterWatcher) GetDaemonSets() []*appsv1.DaemonSet {
+	if !w.DaemonSetInformer.HasSynced() {
+		klog.V(1).Infoln("cache for Daemonsets informer has not fully synced")
+		return nil
+	}
 	daemonSets := []*appsv1.DaemonSet{}
 	for _, d := range w.DaemonSetInformer.GetStore().List() {
 		d := d.(*appsv1.DaemonSet)
@@ -161,6 +161,10 @@ func (w *clusterWatcher) GetDaemonSets() []*appsv1.DaemonSet {
 }
 
 func (w *clusterWatcher) GetDeployments() []*appsv1.Deployment {
+	if !w.DeploymentInformer.HasSynced() {
+		klog.V(1).Infoln("cache for deployment informer has not fully synced")
+		return nil
+	}
 	deployments := []*appsv1.Deployment{}
 	for _, d := range w.DeploymentInformer.GetStore().List() {
 		d := d.(*appsv1.Deployment)
@@ -170,6 +174,10 @@ func (w *clusterWatcher) GetDeployments() []*appsv1.Deployment {
 }
 
 func (w *clusterWatcher) GetNodes() []*v1.Node {
+	if !w.NodeInformer.HasSynced() {
+		klog.V(1).Infoln("cache for node informer has not fully synced")
+		return nil
+	}
 	nodes := []*v1.Node{}
 	for _, n := range w.NodeInformer.GetStore().List() {
 		n := n.(*v1.Node)

@@ -37,16 +37,20 @@ func StartClusterRecorder(ctx context.Context, recorder metrics.ClusterRecorder,
 	for {
 		select {
 		case <-t.C:
-			recordClusterMetrics(ctx, recorder, watcher.GetNodes(), watcher.GetDaemonSets(), watcher.GetDeployments())
-			klog.Infof("Cluster metrics collection tick: %s\n", time.Now().Format(time.RFC3339))
+			RecordClusterMetrics(ctx, recorder, watcher.GetNodes(), watcher.GetDaemonSets(), watcher.GetDeployments())
+			klog.V(1).Infof("Cluster metrics collection tick: %s\n", time.Now().Format(time.RFC3339))
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func recordClusterMetrics(ctx context.Context, m metrics.ClusterRecorder, nodes []*v1.Node, daemonsets []*appsv1.DaemonSet, deployments []*appsv1.Deployment) {
+func RecordClusterMetrics(ctx context.Context, m metrics.ClusterRecorder, nodes []*v1.Node, daemonsets []*appsv1.DaemonSet, deployments []*appsv1.Deployment) {
 	// Report on node conditions
+	if nodes == nil {
+		klog.V(1).Infoln("nodes is 0, wait until the next scraping cycle")
+		return
+	}
 	conditions := nodeConditions(nodes)
 	conditionCounts := []metrics.LabelCount{}
 	for _, v := range conditions.Dump() {
@@ -132,22 +136,11 @@ func (ar *addonRestarts) PopAddonRestarts() map[common.Addon]int {
 	return results
 }
 
-func (s *NodeScheduler) StartReporting(ctx context.Context, watcher k8s.NodeWatcher, probes probe.ProbeMap, interval time.Duration) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
-
-	for {
-		select {
-		case <-t.C:
-			s.recordNodeMetrics(ctx, watcher.GetNodes(), watcher.GetPods(), probes)
-			klog.Infof("Node metrics collection tick: %s\n", time.Now().Format(time.RFC3339))
-		case <-ctx.Done():
-			return
-		}
+func RecordNodeMetrics(ctx context.Context, mr metrics.NodeRecorder, cfg common.Config, nodes []*v1.Node, pods []*v1.Pod, probes probe.ProbeMap) {
+	if nodes == nil {
+		klog.V(1).Infoln("nodes is 0, wait until the next scraping cycle")
+		return
 	}
-}
-
-func (s *NodeScheduler) recordNodeMetrics(ctx context.Context, nodes []*v1.Node, pods []*v1.Pod, probes probe.ProbeMap) {
 	node := nodes[0] // node watcher will only watch for a single node
 
 	// Record node conditions
@@ -155,32 +148,31 @@ func (s *NodeScheduler) recordNodeMetrics(ctx context.Context, nodes []*v1.Node,
 	clabels := []map[string]string{}
 	for t, st := range conditions {
 		labels := map[string]string{
-			"nodepool": s.cfg.Nodepool,
-			"zone":     s.cfg.Location,
+			"nodepool": cfg.Nodepool,
+			"zone":     cfg.Location,
 			"type":     t,
 			"status":   st,
 		}
 		clabels = append(clabels, labels)
 	}
-	s.mr.RecordNodeConditions(ctx, clabels)
+	mr.RecordNodeConditions(ctx, clabels)
 
 	// Record node availability
 	ready, scheduleable, doneWarming := nodeAvailability(node)
 	nodeAvailable := ready && scheduleable && doneWarming
 	labels := map[string]string{
-		"nodepool":     s.cfg.Nodepool,
-		"zone":         s.cfg.Location,
+		"nodepool":     cfg.Nodepool,
+		"zone":         cfg.Location,
 		"available":    boolToStr(nodeAvailable),
 		"ready":        boolToStr(ready),
 		"scheduleable": boolToStr(scheduleable),
 		"done_warming": boolToStr(doneWarming),
 	}
-	s.mr.RecordNodeAvailability(ctx, labels)
+	mr.RecordNodeAvailability(ctx, labels)
 
 	// Record addon availability
 	// Addon control plane depends on node availability
 	cpAvailable := nodeAvailable
-	restarts := s.PopAddonRestarts()
 	// Use counts: deployments may sometimes have multiple pods on a single node
 	// TODO: probing to handle case of multiple pods on node
 	counts := podsByAddon(pods)
@@ -190,9 +182,6 @@ func (s *NodeScheduler) recordNodeMetrics(ctx context.Context, nodes []*v1.Node,
 		pod := pods[0]
 		running := podIsRunning(pod)
 
-		// TODO: differentiate container restart between multiple pods on same host?
-		_, restarted := restarts[addon]
-
 		probeResult := probe.AvailableUnknown
 		result := probe.Run(ctx, probes, pod, addon)
 		if result.Err != nil {
@@ -200,17 +189,16 @@ func (s *NodeScheduler) recordNodeMetrics(ctx context.Context, nodes []*v1.Node,
 		}
 		probeResult = result.Available
 
-		available := running && !restarted && (probeResult == "True" || probeResult == "Unknown")
+		available := running && (probeResult == "True" || probeResult == "Unknown")
 		if !available {
 			cpAvailable = false
 		}
 		labels := map[string]string{
-			"nodepool":       s.cfg.Nodepool,
-			"zone":           s.cfg.Location,
+			"nodepool":       cfg.Nodepool,
+			"zone":           cfg.Location,
 			"available":      boolToStr(available),
 			"node_available": boolToStr(nodeAvailable),
 			"running":        boolToStr(running),
-			"stable":         boolToStr(!restarted),
 			"healthy":        probeResult,
 		}
 		addAddonLabels(addon, labels)
@@ -219,15 +207,15 @@ func (s *NodeScheduler) recordNodeMetrics(ctx context.Context, nodes []*v1.Node,
 			Count:  len(pods),
 		})
 	}
-	s.mr.RecordAddonAvailabilies(ctx, labelCounts)
+	mr.RecordAddonAvailabilies(ctx, labelCounts)
 
 	// Record addon control plane availability
 	labels = map[string]string{
-		"nodepool":  s.cfg.Nodepool,
-		"zone":      s.cfg.Location,
+		"nodepool":  cfg.Nodepool,
+		"zone":      cfg.Location,
 		"available": boolToStr(cpAvailable),
 	}
-	s.mr.RecordAddonControlPlaneAvailability(ctx, labels)
+	mr.RecordAddonControlPlaneAvailability(ctx, labels)
 }
 
 func (s *NodeScheduler) ContainerRestartHandler(ctx context.Context) (handler func(pod *v1.Pod, status v1.ContainerStatus)) {
@@ -265,7 +253,7 @@ func (s *NodeScheduler) ContainerRestartHandler(ctx context.Context) (handler fu
 func StartClusterProbes(ctx context.Context, clientset *kubernetes.Clientset,
 	recorder metrics.ProbeRecorder, probes probe.ClusterProbeMap, interval time.Duration) {
 
-	klog.Infoln("Starting to probe the Cluster-wide addon components.")
+	klog.V(1).Infoln("Starting to probe the Cluster-wide addon components.")
 
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -273,7 +261,7 @@ func StartClusterProbes(ctx context.Context, clientset *kubernetes.Clientset,
 	for {
 		select {
 		case <-t.C:
-			recordClusterProbeMetrics(ctx, clientset, recorder, probes)
+			RecordClusterProbeMetrics(ctx, clientset, recorder, probes)
 			klog.V(1).Infof("Cluster Prober tick: %s\n", time.Now().Format(time.RFC3339))
 		case <-ctx.Done():
 			return
@@ -281,7 +269,7 @@ func StartClusterProbes(ctx context.Context, clientset *kubernetes.Clientset,
 	}
 }
 
-func recordClusterProbeMetrics(ctx context.Context, clientset *kubernetes.Clientset,
+func RecordClusterProbeMetrics(ctx context.Context, clientset *kubernetes.Clientset,
 	recorder metrics.ProbeRecorder, probes probe.ClusterProbeMap) {
 
 	var res probe.Result

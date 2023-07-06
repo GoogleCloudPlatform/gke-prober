@@ -27,6 +27,7 @@ import (
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/probe"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/scheduler"
+	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
 )
@@ -35,7 +36,17 @@ import (
 // You choose between this built-in server or your own custom server
 type Server struct {
 	httpserver *http.Server
-	interval   time.Duration
+
+	clientSet *kubernetes.Clientset
+
+	cw k8s.ClusterWatcher
+	cr metrics.ClusterRecorder
+	pr metrics.ProbeRecorder
+	nw k8s.NodeWatcher
+	nr metrics.NodeRecorder
+
+	interval time.Duration
+	config   common.Config
 
 	// tickStatusMux protects tick fields
 	tickStatusMux sync.RWMutex
@@ -46,8 +57,11 @@ type Server struct {
 // New return a http server instnace
 func NewServer(lchecks *Checks, rchecks *Checks, interval time.Duration) *Server {
 
-	s := &Server{}
-	s.interval = interval
+	s := &Server{
+		interval: interval,
+		config:   common.GetConfig(),
+	}
+
 	mux := http.NewServeMux()
 
 	// Register probers (liveness and Readiness)
@@ -69,43 +83,75 @@ func NewServer(lchecks *Checks, rchecks *Checks, interval time.Duration) *Server
 	return s
 }
 
-func (s *Server) RunUntil(ctx context.Context, wg *sync.WaitGroup, kubeconfig string) {
+func (s *Server) RunUntil(ctx context.Context, wg *sync.WaitGroup, kubeconfig string) error {
 
 	defer wg.Done()
 
-	go s.tick(ctx)
 	go s.graceshutdown(ctx)
+	klog.Infof("starting the server with config: %+v\n", s.config)
 
-	cfg := common.GetConfig()
-	klog.Infof("starting the server with config: %+v\n", cfg)
-
-	clientset := k8s.ClientOrDie(kubeconfig)
-	provider, err := metrics.StartGCM(ctx, cfg)
+	s.clientSet = k8s.ClientOrDie(kubeconfig)
+	provider, err := metrics.StartGCM(ctx, s.config)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	if cfg.Mode == common.ModeCluster {
-		cr := provider.ClusterRecorder()
-		w := k8s.NewClusterWatcher(clientset)
-		w.StartClusterWatches(ctx)
-		go scheduler.StartClusterRecorder(ctx, cr, w, cfg.ReportInterval)
-		if cfg.ClusterProbes {
-			pr := provider.ProbeRecorder()
-			go scheduler.StartClusterProbes(ctx, clientset, pr, probe.ClusterProbes(), cfg.ReportInterval)
+	if s.config.Mode == common.ModeCluster {
+		s.cr = provider.ClusterRecorder()
+		s.cw = k8s.NewClusterWatcher(s.clientSet)
+		// start informers
+		s.cw.StartClusterWatches(ctx.Done())
+		if s.config.ClusterProbes {
+			s.pr = provider.ProbeRecorder()
 		}
+		go s.runScrape(ctx)
 	} else {
-		nr := provider.NodeRecorder()
-		s := scheduler.NewNodeScheduler(nr, cfg)
-		w := k8s.NewNodeWatcher(clientset, cfg.NodeName)
-		w.StartNodeWatches(ctx, s.ContainerRestartHandler(ctx))
-		go s.StartReporting(ctx, w, probe.NodeProbes(), cfg.ReportInterval)
+		s.nr = provider.NodeRecorder()
+		s.nw = k8s.NewNodeWatcher(s.clientSet, s.config.NodeName)
+		s.nw.StartNodeWatches(ctx.Done())
+		go s.runScrape(ctx)
 	}
 
-	klog.Infof("[Livenes and Readiness Server]: Lisenting on %s \n", s.httpserver.Addr)
-	if err := s.httpserver.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		klog.Warningf("[Livenes and Readiness Server]: Could not listen on %s, [Reason]: %s", s.httpserver.Addr, err.Error())
+	klog.V(1).Infof("[gke-prober Livenes and Readiness Server]: Lisenting on %s \n", s.httpserver.Addr)
+	return s.httpserver.ListenAndServe()
+}
+
+func (s *Server) runScrape(ctx context.Context) {
+	ticker := time.NewTicker(s.interval)
+	defer ticker.Stop()
+	s.tick(ctx, time.Now())
+
+	for {
+		select {
+		case startTime := <-ticker.C:
+			s.tick(ctx, startTime)
+		case <-ctx.Done():
+			return
+		}
 	}
+}
+
+// Every tick trigges one metrics scraping cycle
+// Scrping should complete within the interval, or time out
+func (s *Server) tick(ctx context.Context, startTime time.Time) {
+	s.tickStatusMux.Lock()
+	s.tickLastStart = startTime
+	s.tickStatusMux.Unlock()
+
+	ctx, cancel := context.WithTimeout(ctx, s.interval)
+	defer cancel()
+
+	klog.V(1).Infof("[%s] Scraping metrics\n", startTime.Format(time.RFC3339))
+	if common.ModeCluster == s.config.Mode {
+		scheduler.RecordClusterMetrics(ctx, s.cr, s.cw.GetNodes(), s.cw.GetDaemonSets(), s.cw.GetDeployments())
+		if s.config.ClusterProbes {
+			scheduler.RecordClusterProbeMetrics(ctx, s.clientSet, s.pr, probe.ClusterProbes())
+		}
+	} else {
+		scheduler.RecordNodeMetrics(ctx, s.nr, s.config, s.nw.GetNodes(), s.nw.GetPods(), probe.NodeProbes())
+	}
+
+	klog.V(1).Infof("[%s] Scraping cycle ends\n", time.Now().Format(time.RFC3339))
 }
 
 func (s *Server) graceshutdown(ctx context.Context) {
@@ -117,23 +163,6 @@ func (s *Server) graceshutdown(ctx context.Context) {
 	s.httpserver.SetKeepAlivesEnabled(false)
 	if err := s.httpserver.Shutdown(newctx); err != nil {
 		klog.Warningf("Health Check Server failed to shutdown due to [%s]", err.Error())
-	}
-}
-
-func (s *Server) tick(ctx context.Context) {
-	t := time.NewTicker(s.interval)
-	defer t.Stop()
-
-	for {
-		select {
-		case <-t.C:
-			s.tickStatusMux.Lock()
-			s.tickLastStart = time.Now()
-			klog.V(1).Infof("Health-check server alive, last tick [%s],", s.tickLastStart.Format(time.RFC3339))
-			s.tickStatusMux.Unlock()
-		case <-ctx.Done():
-			return
-		}
 	}
 }
 

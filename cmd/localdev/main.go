@@ -98,7 +98,7 @@ func main() {
 	if cfg.Mode == common.ModeCluster {
 		cr := provider.ClusterRecorder()
 		w := k8s.NewClusterWatcher(clientset)
-		w.StartClusterWatches(ctx)
+		w.StartClusterWatches(ctx.Done())
 		go scheduler.StartClusterRecorder(ctx, cr, w, cfg.ReportInterval)
 	}
 
