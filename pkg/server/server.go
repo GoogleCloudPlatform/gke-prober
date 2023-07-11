@@ -45,8 +45,7 @@ type Server struct {
 	nw k8s.NodeWatcher
 	nr metrics.NodeRecorder
 
-	interval time.Duration
-	config   common.Config
+	Config common.Config
 
 	// tickStatusMux protects tick fields
 	tickStatusMux sync.RWMutex
@@ -55,11 +54,10 @@ type Server struct {
 }
 
 // New return a http server instnace
-func NewServer(lchecks *Checks, rchecks *Checks, interval time.Duration) *Server {
+func NewServer(lchecks *Checks, rchecks *Checks) *Server {
 
 	s := &Server{
-		interval: interval,
-		config:   common.GetConfig(),
+		Config: common.GetConfig(),
 	}
 
 	mux := http.NewServeMux()
@@ -88,26 +86,26 @@ func (s *Server) RunUntil(ctx context.Context, wg *sync.WaitGroup, kubeconfig st
 	defer wg.Done()
 
 	go s.graceshutdown(ctx)
-	klog.Infof("starting the server with config: %+v\n", s.config)
+	klog.Infof("starting the server with config: %+v\n", s.Config)
 
 	s.clientSet = k8s.ClientOrDie(kubeconfig)
-	provider, err := metrics.StartGCM(ctx, s.config)
+	provider, err := metrics.StartGCM(ctx, s.Config)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	if s.config.Mode == common.ModeCluster {
+	if s.Config.Mode == common.ModeCluster {
 		s.cr = provider.ClusterRecorder()
 		s.cw = k8s.NewClusterWatcher(s.clientSet)
 		// start informers
 		s.cw.StartClusterWatches(ctx.Done())
-		if s.config.ClusterProbes {
+		if s.Config.ClusterProbes {
 			s.pr = provider.ProbeRecorder()
 		}
 		go s.runScrape(ctx)
 	} else {
 		s.nr = provider.NodeRecorder()
-		s.nw = k8s.NewNodeWatcher(s.clientSet, s.config.NodeName)
+		s.nw = k8s.NewNodeWatcher(s.clientSet, s.Config.NodeName)
 		s.nw.StartNodeWatches(ctx.Done())
 		go s.runScrape(ctx)
 	}
@@ -117,7 +115,7 @@ func (s *Server) RunUntil(ctx context.Context, wg *sync.WaitGroup, kubeconfig st
 }
 
 func (s *Server) runScrape(ctx context.Context) {
-	ticker := time.NewTicker(s.interval)
+	ticker := time.NewTicker(s.Config.ReportInterval)
 	defer ticker.Stop()
 	s.tick(ctx, time.Now())
 
@@ -138,20 +136,21 @@ func (s *Server) tick(ctx context.Context, startTime time.Time) {
 	s.tickLastStart = startTime
 	s.tickStatusMux.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, s.interval)
+	ctx, cancel := context.WithTimeout(ctx, s.Config.ReportInterval)
 	defer cancel()
 
-	klog.V(1).Infof("[%s] Scraping metrics\n", startTime.Format(time.RFC3339))
-	if common.ModeCluster == s.config.Mode {
+	klog.V(1).Infof("[%s] Scraping metrics starts\n", startTime.Format(time.RFC3339))
+	if common.ModeCluster == s.Config.Mode {
 		scheduler.RecordClusterMetrics(ctx, s.cr, s.cw.GetNodes(), s.cw.GetDaemonSets(), s.cw.GetDeployments())
-		if s.config.ClusterProbes {
+		if s.Config.ClusterProbes {
 			scheduler.RecordClusterProbeMetrics(ctx, s.clientSet, s.pr, probe.ClusterProbes())
 		}
 	} else {
-		scheduler.RecordNodeMetrics(ctx, s.nr, s.config, s.nw.GetNodes(), s.nw.GetPods(), probe.NodeProbes())
+		scheduler.RecordNodeMetrics(ctx, s.nr, s.Config, s.nw.GetNodes(), s.nw.GetPods(), probe.NodeProbes())
 	}
 
-	klog.V(1).Infof("[%s] Scraping cycle ends\n", time.Now().Format(time.RFC3339))
+	collectTime := time.Since(startTime)
+	klog.V(1).Infof("[%s] Scraping cycle ends. Duration(seconds): %f\n", time.Now().Format(time.RFC3339), float64(collectTime)/float64(time.Second))
 }
 
 func (s *Server) graceshutdown(ctx context.Context) {
@@ -182,7 +181,7 @@ func (s *Server) Healthz() http.HandlerFunc {
 		lastTickStart := s.tickLastStart
 		s.tickStatusMux.RUnlock()
 
-		maxTickWait := time.Duration(1.5 * float64(s.interval))
+		maxTickWait := time.Duration(1.5 * float64(s.Config.ReportInterval))
 		tickWait := time.Since(lastTickStart)
 		klog.V(2).Infof("Liveness check by kubelet, tickWait is %s\n", tickWait.String())
 		if !lastTickStart.IsZero() && tickWait > maxTickWait {

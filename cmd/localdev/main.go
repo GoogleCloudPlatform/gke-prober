@@ -15,19 +15,15 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
+	"sync"
 	"time"
 
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
-	"github.com/GoogleCloudPlatform/gke-prober/pkg/k8s"
-	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
-	"github.com/GoogleCloudPlatform/gke-prober/pkg/scheduler"
+	"github.com/GoogleCloudPlatform/gke-prober/pkg/server"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/homedir"
 	"k8s.io/klog/v2"
@@ -78,56 +74,27 @@ func main() {
 
 	klog.Infof("starting gke-prober locally with config: %+v\n", cfg)
 
-	clientset := k8s.ClientOrDie(kubeconfig)
+	ctx := server.SetupSignalContext()
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
 
-	ctx, cancel := context.WithCancel(context.Background())
-
-	defer cancel()
 	defer klog.Infof("exiting...")
 
-	// Initialize metrics pipeline
-	var provider metrics.Provider
-	var err error
-	//provider, err = metrics.StartOTel(ctx, cfg)
-	provider, err = metrics.StartGCM(ctx, cfg)
-	if err != nil {
-		klog.Fatalf(err.Error())
-	}
-
-	// initialize watcher, metrics recorder, and prober
-	if cfg.Mode == common.ModeCluster {
-		cr := provider.ClusterRecorder()
-		w := k8s.NewClusterWatcher(clientset)
-		w.StartClusterWatches(ctx.Done())
-		go scheduler.StartClusterRecorder(ctx, cr, w, cfg.ReportInterval)
-	}
-
-	// Start the local controller to manage node probers
-	// go localcontroller.StartController(ctx, clientset)
-
-	// Expose prometheus endpoint for local process metrics
-	// http.Handle("/metrics", promhttp.Handler())
-	// go http.ListenAndServe(localPromPort, nil)
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	<-sigs
-
-}
-
-func getKubeconfig() string {
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
-	return *kubeconfig
+	s := server.NewServer(nil, nil)
+	s.Config = cfg
+	s.RunUntil(ctx, wg, kubeconfig)
 }
 
 func init() {
 	flag.StringVar(&project, "project", "", "your GCP project id")
 	flag.StringVar(&location, "location", "", "your cluster region/zone")
 	flag.StringVar(&cluster, "cluster", "", "your cluster name")
+	if home := homedir.HomeDir(); home != "" {
+		flag.StringVar(&kubeconfig, "kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		flag.StringVar(&kubeconfig, "kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+
+	klog.InitFlags(nil)
+	flag.Parse()
 }

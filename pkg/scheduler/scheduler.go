@@ -48,7 +48,7 @@ func StartClusterRecorder(ctx context.Context, recorder metrics.ClusterRecorder,
 func RecordClusterMetrics(ctx context.Context, m metrics.ClusterRecorder, nodes []*v1.Node, daemonsets []*appsv1.DaemonSet, deployments []*appsv1.Deployment) {
 	// Report on node conditions
 	if nodes == nil {
-		klog.V(1).Infoln("nodes is 0, wait until the next scraping cycle")
+		klog.V(1).Infoln("Informer caches syncing. Skip next scraping cycle and wait until the caches are fully synced")
 		return
 	}
 	conditions := nodeConditions(nodes)

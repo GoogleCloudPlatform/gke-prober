@@ -19,7 +19,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/server"
 	"k8s.io/client-go/util/homedir"
 	"k8s.io/klog/v2"
@@ -34,7 +33,7 @@ func main() {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 
-	s := server.NewServer(nil, nil, common.DefaultReportInterval)
+	s := server.NewServer(nil, nil)
 	s.RunUntil(ctx, wg, kubeconfig)
 }
 
