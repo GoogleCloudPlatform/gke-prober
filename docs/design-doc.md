@@ -53,26 +53,15 @@ func nodeAvailabilities(l []*v1.Node) (*mapCounter, int) {
 ### cluster/addon_available
 
 ## Go Packages and Classes
-### main.go
-The job of the main goroutine is to load the configurations and then start the metrics provider
+### cmd/gke-prober.go
+The job of the main goroutine is rather simple such that it creates a new server and runs it forever
 ```go
-// Pre load the configurations from the command line as well as from the OS enviroment variables 
-func getConfig()
-func getEnv()
-func getMetadata()
-
-// Kubeconfig is only needed if you run the prober as an application outside of the cluster. The prober uses the credentials in kubeconfig for authentication
-// On cluster, the prober calls "in-cluster-config" to find out the attached service account in order to authenticate to the K8S ApiServer
-func getKubeconfig()
-
-// Start the metrics provider and cluster/node recorders
-provider, err = metrics.StartGCM(ctx, cfg)
-cr := provider.ClusterRecorder()
-
-// Start a set of K8S watcher/informers 
-w := k8s.NewClusterWatcher(clientset)
-w.StartClusterWatches(ctx)
+s := server.NewServer(nil, nil)
+s.RunUntil(ctx, wg, kubeconfig)
 ```
+### k8s.go
+The server package implements the main logic of prober by initiating multiple go routines
+It also implements a http server to handle pod liveness probe using healthz function
 
 ### k8s.go
 The k8s package provides a set of wrappers for functions in client-go to handle the communication with your cluster
@@ -93,7 +82,6 @@ type clusterWatcher struct {
 type nodeWatcher struct {
 	NodeInformer            cache.SharedInformer
 	PodInformer             cache.SharedInformer
-	containerRestartHandler func(pod *v1.Pod, status v1.ContainerStatus)
 }
 
 // Each informer runs in a separate goroutine
@@ -106,23 +94,11 @@ func (w *clusterWatcher) StartClusterWatches(ctx context.Context) {
 ```
 
 ### scheduler.go
-scheduler implements a control loop that runs in the main goroutine. 
-
-The loop runs with a timer. On timeout, metrics are being generated from the addons under monitoring and get reported to Cloud Monitoring
+The job of scheduler is to generate metrics
 
 ```go
-// A timer that controls the metrics reporting
-func StartClusterRecorder(ctx context.Context, recorder metrics.ClusterRecorder, watcher k8s.ClusterWatcher, interval time.Duration) {
-	t := time.NewTicker(interval)
-	for {
-		select {
-		case <-t.C:
-			recordClusterMetrics(recorder, watcher.GetNodes(), watcher.GetDaemonSets(), watcher.GetDeployments())
-		case <-ctx.Done():
-			return
-		}
-	}
-}
+// Generate cluster metrics
+func RecordClusterMetrics(ctx context.Context, m metrics.ClusterRecorder, nodes []*v1.Node, daemonsets []*appsv1.DaemonSet, deployments []*appsv1.Deployment)
 
 ```
 
@@ -158,29 +134,34 @@ func (w *nodeWatcher) StartNodeWatches() {
 	go w.PodInformer.Run(stop)
 }
 ```
-2. Cluster/Node recorders. The main job of the recorders is to emit data points and expose metrics using Cloud Monitoring APIs
+2. The server ticks. Upon each tick, the prober scraps metrics, executes probes and expose metrics to cloud monitoring
+Tick is implemented within a context with timeout. In the event of timeout, unfinished jobs of metrics reporting will be terminated
+
 ```go
-go scheduler.StartClusterRecorder(ctx, cr, w, cfg.ReportInterval)
-go s.StartReporting(ctx, w, probe.GKEProbes(), cfg.ReportInterval)
-```
-3. Prometues
-```go
-go http.ListenAndServe(localPromPort, nil)
+// server.go
+go s.runScrape(ctx)
+
+func (s *Server) runScrape(ctx context.Context) {
+	ticker := time.NewTicker(s.Config.ReportInterval)
+	defer ticker.Stop()
+	s.tick(ctx, time.Now())
+
+	for {
+		select {
+		case startTime := <-ticker.C:
+			s.tick(ctx, startTime)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
 ```
 
 ### Context
 Synchronization across all goroutines is controlled by a single go context with cancel method. The context is created in the main goroutine which goes into blocked after successfully spawning all worker goroutings
 ```go
-// Create a context without timeout
-ctx, cancel := context.WithCancel(context.Background())
-
-// The main goroutine goes into blocked until after being interrupted by Ctrl+c
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	<-sigs
-
-// Cancel all worker goroutines and main exits
-cancel()
+// gke-probe.go
+ctx := server.SetupSignalContext()
 ```
 
 ## Client-go

@@ -18,10 +18,8 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
-	"github.com/GoogleCloudPlatform/gke-prober/pkg/k8s"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/metrics"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/probe"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,21 +27,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
-
-func StartClusterRecorder(ctx context.Context, recorder metrics.ClusterRecorder, watcher k8s.ClusterWatcher, interval time.Duration) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
-
-	for {
-		select {
-		case <-t.C:
-			RecordClusterMetrics(ctx, recorder, watcher.GetNodes(), watcher.GetDaemonSets(), watcher.GetDeployments())
-			klog.V(1).Infof("Cluster metrics collection tick: %s\n", time.Now().Format(time.RFC3339))
-		case <-ctx.Done():
-			return
-		}
-	}
-}
 
 func RecordClusterMetrics(ctx context.Context, m metrics.ClusterRecorder, nodes []*v1.Node, daemonsets []*appsv1.DaemonSet, deployments []*appsv1.Deployment) {
 	// Report on node conditions
@@ -248,25 +231,6 @@ func (s *NodeScheduler) ContainerRestartHandler(ctx context.Context) (handler fu
 		s.mr.RecordContainerRestart(ctx, labels)
 	}
 	return
-}
-
-func StartClusterProbes(ctx context.Context, clientset *kubernetes.Clientset,
-	recorder metrics.ProbeRecorder, probes probe.ClusterProbeMap, interval time.Duration) {
-
-	klog.V(1).Infoln("Starting to probe the Cluster-wide addon components.")
-
-	t := time.NewTicker(interval)
-	defer t.Stop()
-
-	for {
-		select {
-		case <-t.C:
-			RecordClusterProbeMetrics(ctx, clientset, recorder, probes)
-			klog.V(1).Infof("Cluster Prober tick: %s\n", time.Now().Format(time.RFC3339))
-		case <-ctx.Done():
-			return
-		}
-	}
 }
 
 func RecordClusterProbeMetrics(ctx context.Context, clientset *kubernetes.Clientset,

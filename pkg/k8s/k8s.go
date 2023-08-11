@@ -101,20 +101,6 @@ func (w *nodeWatcher) StartNodeWatches(stopCh <-chan struct{}) {
 	go w.PodInformer.Run(stopCh)
 }
 
-/* func (w *nodeWatcher) detectRestart(old, new interface{}) {
-	oldPod := old.(*v1.Pod)
-	newPod := new.(*v1.Pod)
-	for _, newStatus := range newPod.Status.ContainerStatuses {
-		for _, oldStatus := range oldPod.Status.ContainerStatuses {
-			if newStatus.Name == oldStatus.Name {
-				if oldStatus.RestartCount < newStatus.RestartCount {
-					w.containerRestartHandler(newPod, newStatus)
-				}
-			}
-		}
-	}
-} */
-
 type ClusterWatcher interface {
 	GetDaemonSets() []*appsv1.DaemonSet
 	GetDeployments() []*appsv1.Deployment
