@@ -17,7 +17,6 @@ package main
 import (
 	"flag"
 	"path/filepath"
-	"sync"
 
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/server"
 	"k8s.io/client-go/util/homedir"
@@ -29,15 +28,6 @@ var (
 )
 
 func main() {
-	ctx := server.SetupSignalContext()
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-
-	s := server.NewServer(nil, nil)
-	s.RunUntil(ctx, wg, kubeconfig)
-}
-
-func init() {
 	if home := homedir.HomeDir(); home != "" {
 		flag.StringVar(&kubeconfig, "kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
@@ -45,4 +35,9 @@ func init() {
 	}
 	klog.InitFlags(nil)
 	flag.Parse()
+	defer klog.Flush()
+
+	ctx := server.SetupSignalContext()
+	s := server.NewServer(nil, nil)
+	s.RunUntil(ctx, kubeconfig)
 }

@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
@@ -75,14 +74,12 @@ func main() {
 	klog.Infof("starting gke-prober locally with config: %+v\n", cfg)
 
 	ctx := server.SetupSignalContext()
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
 
 	defer klog.Infof("exiting...")
 
 	s := server.NewServer(nil, nil)
 	s.Config = cfg
-	s.RunUntil(ctx, wg, kubeconfig)
+	s.RunUntil(ctx, kubeconfig)
 }
 
 func init() {

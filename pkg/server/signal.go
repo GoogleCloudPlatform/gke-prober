@@ -24,7 +24,7 @@ import (
 var onlyOneSignalHandler = make(chan struct{})
 var shutdownHandler chan os.Signal
 
-// Only one of SetupSignalContext and SetupSignalHandler should be called, and only can
+// Only one of SetupSignalContext should be called, and only can
 // be called once.
 func SetupSignalContext() context.Context {
 	close(onlyOneSignalHandler)

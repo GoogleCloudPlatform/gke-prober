@@ -81,9 +81,7 @@ func NewServer(lchecks *Checks, rchecks *Checks) *Server {
 	return s
 }
 
-func (s *Server) RunUntil(ctx context.Context, wg *sync.WaitGroup, kubeconfig string) error {
-
-	defer wg.Done()
+func (s *Server) RunUntil(ctx context.Context, kubeconfig string) error {
 
 	go s.graceshutdown(ctx)
 	klog.Infof("starting the server with config: %+v\n", s.Config)
