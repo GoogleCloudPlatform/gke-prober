@@ -20,14 +20,14 @@ import (
 	"log"
 	"time"
 
-	monitoring "cloud.google.com/go/monitoring/apiv3"
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
+	monitoringpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/gke-prober/pkg/common"
 	googlepb "github.com/golang/protobuf/ptypes/timestamp"
 	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/option"
 	metricpb "google.golang.org/genproto/googleapis/api/metric"
 	monitoredrespb "google.golang.org/genproto/googleapis/api/monitoredres"
-	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/grpc/codes"
 )
 
@@ -163,7 +163,7 @@ func (p *gcmProvider) writeTimeSeries(ctx context.Context, ts ...*monitoringpb.T
 	defer cancel()
 
 	err := p.client.CreateTimeSeries(cctx, &monitoringpb.CreateTimeSeriesRequest{
-		Name:       monitoring.MetricProjectPath(p.project),
+		Name:       fmt.Sprintf("projects/%s", p.project),
 		TimeSeries: ts,
 	})
 	return err
