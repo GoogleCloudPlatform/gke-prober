@@ -41,6 +41,7 @@ type Provider interface {
 	ClusterRecorder() ClusterRecorder
 	NodeRecorder() NodeRecorder
 	ProbeRecorder() ProbeRecorder
+	Close() error
 }
 type ClusterRecorder interface {
 	// cluster/addons_expected

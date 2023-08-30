@@ -36,8 +36,8 @@ import (
 // You choose between this built-in server or your own custom server
 type Server struct {
 	httpserver *http.Server
-
-	clientSet *kubernetes.Clientset
+	clientSet  *kubernetes.Clientset
+	provider   metrics.Provider
 
 	cw k8s.ClusterWatcher
 	cr metrics.ClusterRecorder
@@ -46,7 +46,6 @@ type Server struct {
 	nr metrics.NodeRecorder
 
 	Config common.Config
-
 	// tickStatusMux protects tick fields
 	tickStatusMux sync.RWMutex
 	// tickLastStart is equal to start time of last unfinished tick
@@ -87,23 +86,24 @@ func (s *Server) RunUntil(ctx context.Context, kubeconfig string) error {
 	go s.graceshutdown(ctx)
 	klog.Infof("starting the server with config: %+v\n", s.Config)
 
+	var err error
 	s.clientSet = k8s.ClientOrDie(kubeconfig)
-	provider, err := metrics.StartGCM(ctx, s.Config)
+	s.provider, err = metrics.StartGCM(ctx, s.Config)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	if s.Config.Mode == common.ModeCluster {
-		s.cr = provider.ClusterRecorder()
+		s.cr = s.provider.ClusterRecorder()
 		s.cw = k8s.NewClusterWatcher(s.clientSet)
 		// start informers
 		s.cw.StartClusterWatches(ctx.Done())
 		if s.Config.ClusterProbes {
-			s.pr = provider.ProbeRecorder()
+			s.pr = s.provider.ProbeRecorder()
 		}
 		go s.runScrape(ctx)
 	} else {
-		s.nr = provider.NodeRecorder()
+		s.nr = s.provider.NodeRecorder()
 		s.nw = k8s.NewNodeWatcher(s.clientSet, s.Config.NodeName)
 		s.nw.StartNodeWatches(ctx.Done())
 		go s.runScrape(ctx)
@@ -154,11 +154,15 @@ func (s *Server) tick(ctx context.Context, startTime time.Time) {
 
 func (s *Server) graceshutdown(ctx context.Context) {
 	<-ctx.Done()
-	newctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	newctx, cancelTimeout := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelTimeout()
 
+	var err error
+	if err = s.provider.Close(); err != nil {
+		klog.Warningf("Cannot close the connection to provider's API services due to [%s]", err.Error())
+	}
 	s.httpserver.SetKeepAlivesEnabled(false)
-	if err := s.httpserver.Shutdown(newctx); err != nil {
+	if err = s.httpserver.Shutdown(newctx); err != nil {
 		klog.Warningf("Health Check Server failed to shutdown due to [%s]", err.Error())
 	}
 }

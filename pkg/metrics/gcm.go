@@ -92,13 +92,6 @@ func StartGCM(ctx context.Context, cfg common.Config) (*gcmProvider, error) {
 		project:  cfg.ProjectID,
 		resource: resource,
 	}
-
-	// A Goroutine usually runs in the backgroud and will close the connection with the CM remote server.
-	go func() {
-		<-ctx.Done()
-		client.Close()
-	}()
-
 	return provider, err
 }
 
@@ -182,6 +175,10 @@ func (p *gcmProvider) metric(m string) *metricpb.Metric {
 
 type gcmClusterRecorder struct {
 	p *gcmProvider
+}
+
+func (p *gcmProvider) Close() error {
+	return p.client.Close()
 }
 
 func (p *gcmProvider) ClusterRecorder() ClusterRecorder {
