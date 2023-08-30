@@ -29,6 +29,8 @@ spec:
         k8s-app: gke-prober-node
     spec:
       serviceAccountName: gke-prober
+      nodeSelector:
+        iam.gke.io/gke-metadata-server-enabled: "true"
       containers:
       - name: gke-prober
         image: gcr.io/my-gcp-project/gke-prober:latest

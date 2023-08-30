@@ -61,7 +61,6 @@ func NewServer(lchecks *Checks, rchecks *Checks) *Server {
 	}
 
 	mux := http.NewServeMux()
-
 	// Register probers (liveness and Readiness)
 	// The default liveness probe is tickSerivce unless specified
 	if lchecks != nil {
@@ -82,6 +81,8 @@ func NewServer(lchecks *Checks, rchecks *Checks) *Server {
 }
 
 func (s *Server) RunUntil(ctx context.Context, kubeconfig string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	go s.graceshutdown(ctx)
 	klog.Infof("starting the server with config: %+v\n", s.Config)
@@ -134,8 +135,8 @@ func (s *Server) tick(ctx context.Context, startTime time.Time) {
 	s.tickLastStart = startTime
 	s.tickStatusMux.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, s.Config.ReportInterval)
-	defer cancel()
+	ctx, cancelTimeout := context.WithTimeout(ctx, s.Config.ReportInterval)
+	defer cancelTimeout()
 
 	klog.V(1).Infof("[%s] Scraping metrics starts\n", startTime.Format(time.RFC3339))
 	if common.ModeCluster == s.Config.Mode {
@@ -153,7 +154,6 @@ func (s *Server) tick(ctx context.Context, startTime time.Time) {
 
 func (s *Server) graceshutdown(ctx context.Context) {
 	<-ctx.Done()
-
 	newctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
